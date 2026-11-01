@@ -4,6 +4,8 @@
   display: flex;
   flex-direction: column;
   gap: 4pt;
+  overflow-y: auto;
+  scrollbar-width: none;
 }
 
 .auth-label {
@@ -47,6 +49,10 @@
   padding: 5pt;
   border-radius: 4px;
   align-self: center;
+}
+
+.qr:focus {
+  outline: 2px solid #5cb5ff;
 }
 
 .auth-hint {

@@ -22,6 +22,8 @@ export default function Auth() {
   const nextRef = useRef<HTMLButtonElement>(null)
   const smsRef = useRef<HTMLButtonElement>(null)
   const qrRef = useRef<HTMLButtonElement>(null)
+  const qrImgRef = useRef<HTMLImageElement>(null)
+  const backRef = useRef<HTMLButtonElement>(null)
 
   const flowOk = (self: { displayName: string }) => {
     useAuthStore.setState({ selfName: self.displayName })
@@ -95,32 +97,44 @@ export default function Auth() {
               </button>
             )}
             {stage === 'phone' && (
-              <>
-                <button
-                  ref={qrRef}
-                  className="auth-next secondary"
-                  onClick={() => void loginViaQr(ask).then(flowOk).catch(flowErr)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'ArrowUp') nextRef.current?.focus()
-                  }}
-                >
-                  Вход по QR-коду
-                </button>
-                <p className="auth-hint">Аккаунту &lt; ~6 мес.? Telegram может не прислать код — входите по QR</p>
-              </>
+              <button
+                ref={qrRef}
+                className="auth-next secondary"
+                onClick={() => void loginViaQr(ask).then(flowOk).catch(flowErr)}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowUp') nextRef.current?.focus()
+                }}
+              >
+                Вход по QR-коду
+              </button>
             )}
-            <p className="auth-hint">Центр — ввод · ↓ — к кнопке</p>
             {stage === 'code' && codeVia && <p className="auth-hint">{codeVia}</p>}
           </>
         )}
         {stage === 'qr' && (
           <>
-            {qrImg && <img className="qr" src={qrImg} alt="QR для входа" width={96} height={96} />}
-            <p className="auth-hint">Telegram → Устройства → «Привязать устройство» → сканируй</p>
+            {qrImg && (
+              <img
+                ref={qrImgRef}
+                className="qr"
+                src={qrImg}
+                alt="QR для входа"
+                width={96}
+                height={96}
+                tabIndex={0}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowDown') backRef.current?.focus()
+                }}
+              />
+            )}
             <button
+              ref={backRef}
               className="auth-next secondary"
-              autoFocus
               onClick={() => void loginViaPhone(ask).then(flowOk).catch(flowErr)}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowUp') qrImgRef.current?.focus()
+              }}
             >
               По номеру
             </button>
