@@ -92,7 +92,8 @@ export default function Chat() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (menuVisible || viewer || (e.target as HTMLElement)?.tagName === 'INPUT') return
+      const tag = (e.target as HTMLElement)?.tagName
+      if (menuVisible || viewer || tag === 'INPUT' || tag === 'BUTTON') return
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault()
@@ -165,7 +166,7 @@ export default function Chat() {
       <SoftKeyBar
         buttons={{
           start: { icon: 'menu', title: 'Опции' },
-          center: { text: readOnly ? '' : 'Отпр.', title: 'Отправить' },
+          center: { icon: 'select', title: 'Открыть' },
           end: { icon: 'back', title: 'Назад' },
         }}
         onSoftKeyClick={(pos) => {

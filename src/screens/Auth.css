@@ -24,6 +24,19 @@
   outline: 2px solid #5cb5ff;
 }
 
+.auth-next {
+  background: #2b5278;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 10pt;
+  padding: 4pt 6pt;
+}
+
+.auth-next:focus {
+  outline: 2px solid #5cb5ff;
+}
+
 .auth-hint {
   font-size: 9pt;
   color: #7f91a4;

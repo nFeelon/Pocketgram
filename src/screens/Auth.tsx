@@ -17,6 +17,7 @@ export default function Auth() {
   const submit = useAuthStore((s) => s.submit)
   const ask = useAuthStore((s) => s._ask)
   const inputRef = useRef<HTMLInputElement>(null)
+  const nextRef = useRef<HTMLButtonElement>(null)
 
   // Boot: restore session or run the interactive login flow exactly once
   useEffect(() => {
@@ -39,14 +40,17 @@ export default function Auth() {
 
   const meta = stage === 'phone' || stage === 'code' || stage === 'password' ? FIELD_META[stage] : null
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && inputRef.current) {
-      const v = inputRef.current.value.trim()
-      if (v) {
-        inputRef.current.value = ''
-        submit(v)
-      }
+  const submitField = () => {
+    const v = inputRef.current?.value.trim()
+    if (v) {
+      inputRef.current!.value = ''
+      submit(v)
     }
+  }
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') submitField() // desktop/sim path — on device Enter opens the IME instead
+    if (e.key === 'ArrowDown') nextRef.current?.focus()
   }
 
   return (
@@ -63,7 +67,17 @@ export default function Auth() {
               onKeyDown={onKeyDown}
               autoFocus
             />
-            <p className="auth-hint">Центр — продолжить</p>
+            <button
+              ref={nextRef}
+              className="auth-next"
+              onClick={submitField}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowUp') inputRef.current?.focus()
+              }}
+            >
+              Продолжить
+            </button>
+            <p className="auth-hint">Центр — ввод · ↓ — к кнопке</p>
           </>
         )}
         {stage === 'boot' && <p className="auth-hint">Подключение…</p>}
