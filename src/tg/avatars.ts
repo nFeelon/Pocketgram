@@ -1,4 +1,5 @@
 import { tg } from './client.ts'
+import { mediaBlob } from './media.ts'
 
 type Location = Parameters<typeof tg.downloadAsBuffer>[0]
 
@@ -21,9 +22,9 @@ export function avatarUrl(peerId: string, loc?: Location | null): Promise<string
   return p
 }
 
+// through the IDB media cache — avatars survive restarts without re-downloading
 async function download(loc: Location): Promise<string> {
-  const buf = await tg.downloadAsBuffer(loc)
-  return URL.createObjectURL(new Blob([buf as BlobPart], { type: 'image/jpeg' }))
+  return URL.createObjectURL(await mediaBlob(loc, 'image/jpeg'))
 }
 
 async function fetchAvatar(peerId: string): Promise<string | null> {

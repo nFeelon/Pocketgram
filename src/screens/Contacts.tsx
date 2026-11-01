@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router'
 import SoftKeyBar from '../components/SoftKeyBar.tsx'
 import DialogRow from '../components/DialogRow.tsx'
 import { tg } from '../tg/client.ts'
+import { useCleanHash } from '../utils/history.ts'
 import SearchIcon from '../assets/icons/search.svg?react'
 import '../components/DialogRow.css'
 import './ChatList.css'
@@ -17,6 +18,7 @@ interface ContactEntry {
 /** Same focus zones as ChatList: -1 = search button, rows, n..n+2 = softkey bar */
 export default function Contacts() {
   const navigate = useNavigate()
+  useCleanHash()
   const [contacts, setContacts] = useState<ContactEntry[]>([])
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('loading')
   const [filter, setFilter] = useState('')
@@ -25,8 +27,6 @@ export default function Contacts() {
   const searchBtnRef = useRef<HTMLButtonElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
-  const lastRow = useRef(0)
-
   useEffect(() => {
     void tg.getContacts().then(
       (users) => {
@@ -64,8 +64,6 @@ export default function Contacts() {
     Array.from(
       rootRef.current?.querySelectorAll<HTMLButtonElement>('.softkey-bar > button:not([disabled])') ?? [],
     )
-  const centerBtn = () => rootRef.current?.querySelector<HTMLButtonElement>('[data-pos="center"]')
-
   const openContact = (i: number) => {
     const c = visible[i]
     if (c) navigate(`/chat/${c.id}`)
@@ -77,7 +75,6 @@ export default function Contacts() {
     else if (document.activeElement instanceof HTMLButtonElement) document.activeElement.blur()
 
     if (rowFocused >= 0) {
-      lastRow.current = rowFocused
       listRef.current?.querySelector('.focused')?.scrollIntoView({ block: 'nearest' })
     }
   }, [clamped, n, rowFocused])
@@ -190,12 +187,8 @@ export default function Contacts() {
       </div>
 
       <SoftKeyBar
-        buttons={{
-          center: { icon: 'select', title: 'Открыть' },
-          end: { icon: 'back', title: 'Назад' },
-        }}
+        buttons={{ end: { icon: 'back', title: 'Назад' } }}
         onSoftKeyClick={(pos) => {
-          if (pos === 'center' && document.activeElement === centerBtn()) openContact(lastRow.current)
           // 'start' = Escape too: on devices where RSK isn't a real popstate, LSK still exits
           if (pos === 'end' || pos === 'start') navigate(-1)
         }}

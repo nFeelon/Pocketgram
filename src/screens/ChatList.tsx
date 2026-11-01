@@ -9,6 +9,7 @@ import { useConnStore } from '../store/conn.ts'
 import { signOut } from '../tg/auth.ts'
 import { loadDialogs } from '../tg/dialogs.ts'
 import { initUpdates, forwardMessage } from '../tg/messages.ts'
+import { useCleanHash } from '../utils/history.ts'
 import SearchIcon from '../assets/icons/search.svg?react'
 import './ChatList.css'
 
@@ -18,6 +19,8 @@ import './ChatList.css'
  * Center on them clicks natively; ↓ on a softkey scrolls the list.
  */
 export default function ChatList() {
+  // '#menu' is kept — the menu state mirrors it and re-opens consistently
+  useCleanHash('#menu')
   const navigate = useNavigate()
   const dialogs = useDialogsStore((s) => s.dialogs)
   const conn = useConnStore((s) => s.state)
@@ -36,7 +39,6 @@ export default function ChatList() {
   const searchBtnRef = useRef<HTMLButtonElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
-  const lastRow = useRef(0)
   // blocks re-entrant sends while a forward is in flight
   const forwardBusy = useRef(false)
 
@@ -79,8 +81,6 @@ export default function ChatList() {
     Array.from(
       rootRef.current?.querySelectorAll<HTMLButtonElement>('.softkey-bar > button:not([disabled])') ?? [],
     )
-  const centerBtn = () => rootRef.current?.querySelector<HTMLButtonElement>('[data-pos="center"]')
-
   const openDialog = (i: number) => {
     const d = visible[i]
     if (!d) return
@@ -116,7 +116,6 @@ export default function ChatList() {
     else if (document.activeElement instanceof HTMLButtonElement) document.activeElement.blur()
 
     if (rowFocused >= 0) {
-      lastRow.current = rowFocused
       listRef.current?.querySelector('.focused')?.scrollIntoView({ block: 'nearest' })
     }
   }, [clamped, n, rowFocused])
@@ -257,7 +256,6 @@ export default function ChatList() {
       <SoftKeyBar
         buttons={{
           start: { icon: 'menu', title: 'Меню' },
-          center: { icon: 'select', title: 'Открыть' },
           end: { icon: 'back', title: 'Назад' },
         }}
         onSoftKeyClick={(pos) => {
@@ -267,9 +265,8 @@ export default function ChatList() {
             else if (menuVisible) closeMenu()
             else setMenuVisible(true)
           }
-          // row-Enter already opens the dialog — only open when the button itself is focused
-          if (pos === 'center' && document.activeElement === centerBtn()) openDialog(lastRow.current)
-          // 'end' only fires on button click — hardware RSK is history.back natively
+          // center row-Enter clicks natively; 'end' fires on button click —
+          // hardware RSK is history.back natively
           if (pos === 'end') navigate(-1)
         }}
       />

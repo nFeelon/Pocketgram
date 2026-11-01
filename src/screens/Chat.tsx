@@ -31,6 +31,7 @@ import { statusText, getUserStatusText, peerInfo } from '../tg/peers.ts'
 import type { PeerMeta } from '../tg/peers.ts'
 import { useSettingsStore } from '../store/settings.ts'
 import { hasFeature } from '../utils/features.ts'
+import { useCleanHash } from '../utils/history.ts'
 import { formatDay, formatTime } from '../utils/format.ts'
 import './Chat.css'
 
@@ -56,6 +57,8 @@ const urlOf = (m: ChatMessage | undefined) => m?.text.match(/https?:\/\/\S+/)?.[
 export default function Chat() {
   const { peerId = '' } = useParams()
   const navigate = useNavigate()
+  // '#menu' is kept — the menu state mirrors it and re-opens consistently
+  useCleanHash('#menu')
   const dialog = useDialogsStore((s) => s.dialogs.find((d) => d.id === peerId))
   const messages = useChatStore((s) => s.messages)
   const readOnly = useChatStore((s) => s.readOnly)
@@ -181,8 +184,6 @@ export default function Chat() {
     Array.from(
       rootRef.current?.querySelectorAll<HTMLButtonElement>('.softkey-bar > button:not([disabled])') ?? [],
     )
-  const centerBtn = () => rootRef.current?.querySelector<HTMLButtonElement>('[data-pos="center"]')
-
   // sync DOM focus onto the softkey zone's button; keep the focused bubble on screen
   useEffect(() => {
     if (clamped >= n) softkeyBtns()[clamped - n]?.focus()
@@ -682,7 +683,6 @@ export default function Chat() {
       <SoftKeyBar
         buttons={{
           start: { icon: 'menu', title: 'Опции' },
-          center: { icon: 'select', title: 'Открыть' },
           end: { icon: 'back', title: 'Назад' },
         }}
         onSoftKeyClick={(pos) => {
@@ -696,10 +696,8 @@ export default function Chat() {
             else if (menuVisible) closeMenu()
             else setMenuVisible(true)
           }
-          // row-Enter already opened it — only act when the button itself is focused;
-          // the viewer/menu own all input while open
-          if (pos === 'center' && !viewer && !menuVisible && !delOpen && !pinned && !searchMode && document.activeElement === centerBtn()) openFocused()
-          // 'end' only fires on button click — hardware RSK is history.back natively
+          // center row-Enter clicks natively; 'end' fires on button click —
+          // hardware RSK is history.back natively
           if (pos === 'end') navigate(-1)
         }}
       />

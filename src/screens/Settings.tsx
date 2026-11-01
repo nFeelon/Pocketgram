@@ -1,9 +1,12 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import Header from '../components/Header.tsx'
 import SoftKeyBar from '../components/SoftKeyBar.tsx'
 import { useSettingsStore } from '../store/settings.ts'
 import { useConnStore } from '../store/conn.ts'
+import { cacheStats, clearMediaCache } from '../tg/cache.ts'
+import { formatSize } from '../utils/format.ts'
+import { useCleanHash } from '../utils/history.ts'
 import './About.css'
 
 const CONN_LABEL = { offline: 'нет сети', connecting: 'подключение', updating: 'в сети', connected: 'в сети' }
@@ -12,9 +15,16 @@ const onOff = (v: boolean) => (v ? 'вкл' : 'выкл')
 
 export default function Settings() {
   const navigate = useNavigate()
+  useCleanHash()
   const s = useSettingsStore()
   const conn = useConnStore((x) => x.state)
   const rootRef = useRef<HTMLDivElement>(null)
+  const [cacheBytes, setCacheBytes] = useState<number | null>(null)
+  useEffect(() => {
+    void cacheStats()
+      .then(({ bytes }) => setCacheBytes(bytes))
+      .catch(() => setCacheBytes(-1))
+  }, [])
 
   // body rows + the softkey bar — "Назад" must be reachable by D-pad too
   const btns = () => Array.from(rootRef.current?.querySelectorAll('button') ?? [])
@@ -50,6 +60,16 @@ export default function Settings() {
         <button onClick={() => s.toggle('vibrate')}>Вибрация: {onOff(s.vibrate)}</button>
         <button onClick={() => s.toggle('dnd')}>Не беспокоить: {onOff(s.dnd)}</button>
         <button onClick={() => s.toggle('thumbs')}>Миниатюры: {onOff(s.thumbs)}</button>
+        <button
+          onClick={() =>
+            void clearMediaCache()
+              .then(() => setCacheBytes(0))
+              .catch(console.error)
+          }
+        >
+          Кэш медиа: {cacheBytes === null ? '…' : cacheBytes < 0 ? 'н/д' : formatSize(cacheBytes)} —
+          очистить
+        </button>
         <p>Соединение: {CONN_LABEL[conn]}</p>
       </section>
       <SoftKeyBar

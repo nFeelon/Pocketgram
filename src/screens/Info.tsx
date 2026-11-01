@@ -4,6 +4,7 @@ import Header from '../components/Header.tsx'
 import SoftKeyBar from '../components/SoftKeyBar.tsx'
 import { tg } from '../tg/client.ts'
 import { statusText } from '../tg/peers.ts'
+import { useCleanHash } from '../utils/history.ts'
 import './About.css'
 
 interface Member {
@@ -15,6 +16,7 @@ interface Member {
 export default function Info() {
   const { peerId = '' } = useParams()
   const navigate = useNavigate()
+  useCleanHash()
   const [title, setTitle] = useState('Информация')
   const [lines, setLines] = useState<string[]>([])
   const [canMembers, setCanMembers] = useState(false)
@@ -38,7 +40,10 @@ export default function Info() {
           statusText(u.status, u.lastOnline),
           u.bio,
         ])
-      }).catch(console.error)
+      }).catch((e) => {
+        console.error(e)
+        fill('Информация', ['Ошибка загрузки'])
+      })
     } else {
       void tg.getFullChat(id).then((c) => {
         if (alive) setCanMembers(c.canViewParticipants)
@@ -49,7 +54,10 @@ export default function Info() {
           c.onlineCount ? `в сети: ${c.onlineCount}` : '',
           c.bio,
         ])
-      }).catch(console.error)
+      }).catch((e) => {
+        console.error(e)
+        fill('Информация', ['Ошибка загрузки'])
+      })
     }
     return () => {
       alive = false
@@ -94,6 +102,7 @@ export default function Info() {
     <div id="app">
       <Header title={title} />
       <section className="about-body" ref={bodyRef}>
+        {lines.length === 0 && <p>Загрузка…</p>}
         {lines.map((l, i) => (
           <p key={i}>{l}</p>
         ))}

@@ -1,8 +1,8 @@
 .search-row {
   display: flex;
   align-items: center;
-  gap: 4pt;
-  margin: 2pt 4pt;
+  gap: 3pt;
+  margin: 1pt 3pt;
   flex: 0 0 auto;
 }
 
@@ -10,7 +10,7 @@
   background: transparent;
   border: none;
   color: var(--muted);
-  padding: 3pt;
+  padding: 2pt;
   border-radius: 4px;
   flex: 0 0 auto;
   display: inline-flex;
@@ -29,8 +29,8 @@
   border: none;
   border-radius: 4px;
   color: var(--fg);
-  font-size: calc(10pt * var(--fs, 1));
-  padding: 3pt 5pt;
+  font-size: calc(8pt * var(--fs, 1));
+  padding: 2pt 4pt;
 }
 
 .search:focus {

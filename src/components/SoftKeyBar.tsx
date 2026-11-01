@@ -35,9 +35,16 @@ export default function SoftKeyBar({ buttons = {}, onSoftKeyClick = () => {} }: 
       if (tag === 'INPUT' || (tag === 'BUTTON' && event.key === 'Enter')) return
       switch (event.key) {
         /* Left Soft Key (LSK) */
-        case 'Escape': return onSoftKeyClick('start')
+        case 'Escape':
+        case 'SoftLeft':
+          return onSoftKeyClick('start')
         case 'Enter': return onSoftKeyClick('center')
-        /* RSK cannot be intercepted — it is history.back() */
+        /* Right Soft Key candidates — some builds emit a key instead of history.back() */
+        case 'Backspace':
+        case 'SoftRight':
+        case 'BrowserBack':
+        case 'GoBack':
+          return onSoftKeyClick('end')
       }
     }
     window.addEventListener('keydown', handleEvent)

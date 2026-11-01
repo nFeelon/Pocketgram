@@ -1,4 +1,5 @@
 import { tg } from './client.ts'
+import { cachedBlob } from './cache.ts'
 
 export type MediaKind = 'photo' | 'video' | 'video_note' | 'voice' | 'audio' | 'sticker' | 'file' | 'none'
 
@@ -30,14 +31,26 @@ export function thumbOf(media: unknown): Parameters<typeof tg.downloadAsBuffer>[
 
 const urls = new Set<string>()
 
+/** Download media bytes over MTProto as a Blob — goes through the IndexedDB
+ *  cache by uniqueFileId, so re-opened media doesn't re-download. */
+export async function mediaBlob(
+  media: Parameters<typeof tg.downloadAsBuffer>[0],
+  mimeType = 'application/octet-stream',
+): Promise<Blob> {
+  const fetch = async () => {
+    const buf = await tg.downloadAsBuffer(media)
+    return new Blob([buf as BlobPart], { type: mimeType })
+  }
+  return cachedBlob((media as { uniqueFileId?: string }).uniqueFileId ?? null, fetch)
+}
+
 /** Download media bytes over MTProto and expose them as a blob: object URL.
  *  Pass the media's mimeType — media elements may refuse to play a typeless blob. */
 export async function mediaUrl(
   media: Parameters<typeof tg.downloadAsBuffer>[0],
   mimeType = 'application/octet-stream',
 ): Promise<string> {
-  const buf = await tg.downloadAsBuffer(media)
-  const blob = new Blob([buf as BlobPart], { type: mimeType })
+  const blob = await mediaBlob(media, mimeType)
   const url = URL.createObjectURL(blob)
   urls.add(url)
   return url

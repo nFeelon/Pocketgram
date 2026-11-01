@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router'
 import Header from '../components/Header.tsx'
 import SoftKeyBar from '../components/SoftKeyBar.tsx'
 import { useAuthStore } from '../store/auth.ts'
+import { useCleanHash } from '../utils/history.ts'
 import './About.css'
 
 export default function About() {
   const navigate = useNavigate()
+  useCleanHash()
   const selfName = useAuthStore((s) => s.selfName)
   const bodyRef = useRef<HTMLElement>(null)
 

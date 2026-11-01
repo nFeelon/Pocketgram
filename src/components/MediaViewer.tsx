@@ -1,10 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
-import { mediaUrl, revokeMediaUrl, MAX_PLAYABLE_BYTES } from '../tg/media.ts'
+import { mediaBlob, MAX_PLAYABLE_BYTES } from '../tg/media.ts'
 import { formatSize } from '../utils/format.ts'
 import './MediaViewer.css'
 
+declare global {
+  interface Navigator {
+    /** Cloud Phone system volume HUD — HTMLMediaElement.volume is a no-op there */
+    volumeManager?: { requestShow(): void; requestUp(): void; requestDown(): void }
+  }
+}
+
 interface Props {
-  media: Parameters<typeof mediaUrl>[0]
+  media: Parameters<typeof mediaBlob>[0]
   kind: 'photo' | 'video' | 'video_note' | 'voice' | 'audio'
   mimeType?: string
   size?: number
@@ -14,10 +21,12 @@ interface Props {
 /**
  * Full-screen viewer opened as a history entry — RSK/popstate closes it.
  * No MSE on Cloud Phone → video is fully buffered before playback; big
- * files fall back to a "download" hint.
+ * files fall back to a "download" hint. ↑↓ route through volumeManager
+ * (system HUD) since element.volume does nothing on Cloud Phone.
  */
 export default function MediaViewer({ media, kind, mimeType, size, onClose }: Props) {
   const [url, setUrl] = useState<string | null>(null)
+  const [err, setErr] = useState('')
   const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null)
   const tooBig = size !== undefined && size > MAX_PLAYABLE_BYTES
   const isAudio = kind === 'voice' || kind === 'audio'
@@ -26,22 +35,40 @@ export default function MediaViewer({ media, kind, mimeType, size, onClose }: Pr
     if (tooBig) return
     let alive = true
     let created: string | undefined
-    void mediaUrl(media, mimeType).then((u) => {
-      if (alive) setUrl((created = u))
-      else revokeMediaUrl(u)
-    })
+    void mediaBlob(media, mimeType)
+      .then((blob) => {
+        if (alive) setUrl((created = URL.createObjectURL(blob)))
+      })
+      .catch((e) => {
+        console.error(e)
+        if (alive) setErr('Не удалось загрузить медиа')
+      })
     return () => {
       alive = false
-      if (created) revokeMediaUrl(created)
+      if (created) URL.revokeObjectURL(created)
     }
   }, [media, mimeType, tooBig])
 
-  // native controls don't always map D-pad center → play; toggle it ourselves
+  const onMediaError = () => {
+    const code = mediaRef.current?.error?.code
+    setErr(`Медиа не поддерживается (код ${code ?? '?'})`)
+  }
+
+  // native controls don't always map D-pad keys — handle them at window level:
+  // center/space/MediaPlayPause toggles, ↑↓ = volume (system HUD when available)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Enter' || !url || (e.target as HTMLElement)?.tagName === 'BUTTON') return
+      if (!url || (e.target as HTMLElement)?.tagName === 'BUTTON') return
       const el = mediaRef.current
-      if (el) void (el.paused ? el.play() : el.pause())
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'MediaPlayPause') {
+        e.preventDefault()
+        if (el) void (el.paused ? el.play() : el.pause())
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault()
+        const vm = navigator.volumeManager
+        if (vm) (e.key === 'ArrowUp' ? vm.requestUp() : vm.requestDown())
+        else if (el) el.volume = Math.min(1, Math.max(0, el.volume + (e.key === 'ArrowUp' ? 0.15 : -0.15)))
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -54,9 +81,10 @@ export default function MediaViewer({ media, kind, mimeType, size, onClose }: Pr
           Файл слишком большой ({size ? formatSize(size) : '∞'}) — скачайте через меню.
         </p>
       )}
-      {!tooBig && !url && (
+      {!tooBig && !url && !err && (
         <p className="hint">Загрузка…{size ? ` (${formatSize(size)})` : ''}</p>
       )}
+      {err && <p className="hint">{err}</p>}
       {url && kind === 'photo' && <img src={url} alt="" className="full" />}
       {url && isAudio && (
         <audio
@@ -67,6 +95,9 @@ export default function MediaViewer({ media, kind, mimeType, size, onClose }: Pr
           controls
           autoPlay
           className="audio"
+          onError={onMediaError}
+          // autoPlay may be blocked without a fresh gesture — retry on ready
+          onCanPlay={(e) => void e.currentTarget.play().catch(() => {})}
         />
       )}
       {url && !isAudio && kind !== 'photo' && (
@@ -77,10 +108,16 @@ export default function MediaViewer({ media, kind, mimeType, size, onClose }: Pr
           src={url}
           controls
           autoPlay
+          playsInline
           className="full"
+          onError={onMediaError}
+          onCanPlay={(e) => void e.currentTarget.play().catch(() => {})}
         />
       )}
-      <button className="close-hint" onClick={onClose}>Назад</button>
+      {url && !err && <p className="hint small">центр — ▶/⏸ · ↑↓ — громкость</p>}
+      <button className="close-hint" onClick={onClose}>
+        Назад
+      </button>
     </div>
   )
 }
