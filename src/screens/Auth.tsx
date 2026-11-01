@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { signIn, resendViaSms } from '../tg/auth.ts'
+import { signIn, resendViaSms, loginViaQr, loginViaPhone } from '../tg/auth.ts'
 import type { AuthField } from '../tg/auth.ts'
 import { useAuthStore, authReady, authError } from '../store/auth.ts'
 import Header from '../components/Header.tsx'
@@ -15,11 +15,13 @@ export default function Auth() {
   const stage = useAuthStore((s) => s.stage)
   const error = useAuthStore((s) => s.error)
   const codeVia = useAuthStore((s) => s.codeVia)
+  const qrImg = useAuthStore((s) => s.qrImg)
   const submit = useAuthStore((s) => s.submit)
   const ask = useAuthStore((s) => s._ask)
   const inputRef = useRef<HTMLInputElement>(null)
   const nextRef = useRef<HTMLButtonElement>(null)
   const smsRef = useRef<HTMLButtonElement>(null)
+  const qrRef = useRef<HTMLButtonElement>(null)
 
   const flowOk = (self: { displayName: string }) => {
     useAuthStore.setState({ selfName: self.displayName })
@@ -75,7 +77,7 @@ export default function Auth() {
               onClick={submitField}
               onKeyDown={(e) => {
                 if (e.key === 'ArrowUp') inputRef.current?.focus()
-                if (e.key === 'ArrowDown') smsRef.current?.focus()
+                if (e.key === 'ArrowDown') (smsRef.current ?? qrRef.current)?.focus()
               }}
             >
               Продолжить
@@ -92,8 +94,36 @@ export default function Auth() {
                 Прислать SMS
               </button>
             )}
+            {stage === 'phone' && (
+              <>
+                <button
+                  ref={qrRef}
+                  className="auth-next secondary"
+                  onClick={() => void loginViaQr(ask).then(flowOk).catch(flowErr)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowUp') nextRef.current?.focus()
+                  }}
+                >
+                  Вход по QR-коду
+                </button>
+                <p className="auth-hint">Аккаунту &lt; ~6 мес.? Telegram может не прислать код — входите по QR</p>
+              </>
+            )}
             <p className="auth-hint">Центр — ввод · ↓ — к кнопке</p>
-            {codeVia && <p className="auth-hint">{codeVia}</p>}
+            {stage === 'code' && codeVia && <p className="auth-hint">{codeVia}</p>}
+          </>
+        )}
+        {stage === 'qr' && (
+          <>
+            {qrImg && <img className="qr" src={qrImg} alt="QR для входа" width={96} height={96} />}
+            <p className="auth-hint">Telegram → Устройства → «Привязать устройство» → сканируй</p>
+            <button
+              className="auth-next secondary"
+              autoFocus
+              onClick={() => void loginViaPhone(ask).then(flowOk).catch(flowErr)}
+            >
+              По номеру
+            </button>
           </>
         )}
         {stage === 'boot' && <p className="auth-hint">Подключение…</p>}

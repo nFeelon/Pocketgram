@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { AuthField } from '../tg/auth.ts'
 
-export type AuthStage = 'boot' | AuthField | 'ready' | 'error'
+export type AuthStage = 'boot' | AuthField | 'qr' | 'ready' | 'error'
 
 interface AuthState {
   stage: AuthStage
@@ -9,6 +9,8 @@ interface AuthState {
   selfName: string | null
   /** where Telegram delivered the code (from codeSentCallback) — shown under the code field */
   codeVia: string | null
+  /** QR login image (data URL) — refreshed as the login token rotates */
+  qrImg: string | null
   /** UI submits the current field value → resolves the pending ask() */
   submit: (value: string) => void
   /** internal: wire a pending credential request */
@@ -23,6 +25,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   error: null,
   selfName: null,
   codeVia: null,
+  qrImg: null,
   submit: (value) => {
     resolver?.(value)
     resolver = null

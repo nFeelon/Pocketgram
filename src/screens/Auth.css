@@ -42,6 +42,13 @@
   border: 1px solid #2b5278;
 }
 
+.qr {
+  background: #fff;
+  padding: 5pt;
+  border-radius: 4px;
+  align-self: center;
+}
+
 .auth-hint {
   font-size: 9pt;
   color: #7f91a4;

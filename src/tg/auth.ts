@@ -1,17 +1,17 @@
 import { tg } from './client.ts'
 import { useAuthStore } from '../store/auth.ts'
+import QRCode from 'qrcode'
 
 export type AuthField = 'phone' | 'code' | 'password'
 
 // React StrictMode double-mounts effects in dev — memoize so tg.start never runs twice
 let flow: ReturnType<typeof tg.start> | undefined
+// an abandoned flow (SMS retry / QR toggle) keeps running — generation-guard its
+// callbacks so they can't hijack the stage or overwrite delivery hints
+let flowGen = 0
 // phone cached after the first ask — an SMS-retry restarts the flow without re-asking
 let lastPhone: string | undefined
 
-/**
- * Drives tg.start() where each credential request is delegated to the UI:
- * `ask` must return a promise resolved when the user submits the field.
- */
 // where Telegram actually sent the code — surfaced in the UI (device has no console)
 const VIA: Record<string, string> = {
   app: 'в Telegram (сервисный чат)',
@@ -24,20 +24,41 @@ const VIA: Record<string, string> = {
   email: 'на e-mail',
 }
 
-export function signIn(ask: (field: AuthField) => Promise<string>, forceSms = false) {
-  flow ??= tg
+/**
+ * Drives tg.start() where each credential request is delegated to the UI:
+ * `ask` must return a promise resolved when the user submits the field.
+ */
+export function signIn(
+  ask: (field: AuthField) => Promise<string>,
+  opts: { forceSms?: boolean; qr?: boolean } = {},
+) {
+  if (flow) return flow
+  const gen = ++flowGen
+  flow = tg
     .start({
       phone: () => lastPhone ?? ask('phone').then((v) => (lastPhone = v)),
-      forceSms,
+      forceSms: opts.forceSms ?? false,
       code: () => ask('code'),
       password: () => ask('password'),
+      // QR flow replaces phone+code entirely — the handler is re-called each time
+      // the login token rotates, so keep the rendered image fresh
+      qrCodeHandler: opts.qr
+        ? (url) =>
+            void QRCode.toDataURL(url, { margin: 0, width: 96 }).then((qrImg) => {
+              if (gen === flowGen) useAuthStore.setState({ stage: 'qr', qrImg })
+            })
+        : undefined,
       // fires after Telegram accepted the number — the request definitely went out
-      codeSentCallback: (sent) =>
-        useAuthStore.setState({ codeVia: `Код отправлен: ${VIA[sent.type] ?? sent.type}` }),
-      invalidCodeCallback: (type) =>
-        useAuthStore.setState({
-          error: type === 'code' ? 'Неверный код, попробуйте ещё раз' : 'Неверный пароль',
-        }),
+      codeSentCallback: (sent) => {
+        if (gen === flowGen)
+          useAuthStore.setState({ codeVia: `Код отправлен: ${VIA[sent.type] ?? sent.type}` })
+      },
+      invalidCodeCallback: (type) => {
+        if (gen === flowGen)
+          useAuthStore.setState({
+            error: type === 'code' ? 'Неверный код, попробуйте ещё раз' : 'Неверный пароль',
+          })
+      },
     })
     .catch((e) => {
       flow = undefined
@@ -53,7 +74,21 @@ export function signIn(ask: (field: AuthField) => Promise<string>, forceSms = fa
  */
 export function resendViaSms(ask: (field: AuthField) => Promise<string>) {
   flow = undefined
-  return signIn(ask, true)
+  return signIn(ask, { forceSms: true })
+}
+
+/** Restart the flow over QR login — bypasses code delivery entirely */
+export function loginViaQr(ask: (field: AuthField) => Promise<string>) {
+  flow = undefined
+  return signIn(ask, { qr: true })
+}
+
+/** Back to the phone-number flow — clears the cached phone so it can be re-entered */
+export function loginViaPhone(ask: (field: AuthField) => Promise<string>) {
+  flow = undefined
+  lastPhone = undefined
+  useAuthStore.setState({ stage: 'boot', qrImg: null })
+  return signIn(ask)
 }
 
 /** Terminate the Telegram session, drop the local session store and restart */
