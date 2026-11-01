@@ -267,11 +267,44 @@ export function initUpdates() {
   })
   tg.onDeleteMessage.add((u) => {
     const peerId = useChatStore.getState().peerId
-    if (!peerId) return
     // channelId is already marked (toggleChannelIdMark); null means a user/chat update
     const applies =
-      u.channelId == null ? Number(peerId) > -1e12 : peerId === String(u.channelId)
-    if (applies) u.messageIds.forEach((id) => useChatStore.getState().remove(id))
+      peerId != null &&
+      (u.channelId == null ? Number(peerId) > -1e12 : peerId === String(u.channelId))
+    if (applies) {
+      const tail = useChatStore.getState().messages.at(-1)
+      u.messageIds.forEach((id) => useChatStore.getState().remove(id))
+      // the deleted message was the feed tail — the dialog row would keep lying
+      // (preview + ✓ outId) until the next event; sync it to the new tail now
+      if (tail && u.messageIds.includes(tail.id)) {
+        const m = useChatStore.getState().messages.at(-1)
+        useDialogsStore
+          .getState()
+          .bump(peerId, m ? m.text || mediaLabel(m.mediaKind) : '', m?.time ?? 0, false, m?.out ? m.id : undefined)
+      }
+    }
+    // a closed dialog can only be pinned down by its outgoing last id —
+    // refetch its real last message when that id was just deleted
+    if (u.channelId != null) {
+      const dialogId = String(u.channelId)
+      const d = useDialogsStore.getState().dialogs.find((x) => x.id === dialogId)
+      if (d?.outId != null && u.messageIds.includes(d.outId)) {
+        void tg
+          .getHistory(Number(dialogId), { limit: 1 })
+          .then(([m]) =>
+            useDialogsStore
+              .getState()
+              .bump(
+                dialogId,
+                messagePreview(m),
+                m ? Math.floor(m.date.getTime() / 1000) : 0,
+                false,
+                m?.isOutgoing ? m.id : undefined,
+              ),
+          )
+          .catch(console.error)
+      }
+    }
   })
   tg.onHistoryRead.add((u) => {
     if (u.isOutbox) useDialogsStore.getState().setReadOutbox(String(u.chatId), u.maxReadId)

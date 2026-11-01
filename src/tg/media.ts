@@ -29,8 +29,6 @@ export function thumbOf(media: unknown): Parameters<typeof tg.downloadAsBuffer>[
   return m?.getThumbnail?.('m') ?? m?.getThumbnail?.('s') ?? null
 }
 
-const urls = new Set<string>()
-
 /** Download media bytes over MTProto as a Blob — goes through the IndexedDB
  *  cache by uniqueFileId, so re-opened media doesn't re-download.
  *  stallTimeout turns a hung download into an error the UI can show. */
@@ -73,13 +71,10 @@ export async function mediaUrl(
   mimeType = 'application/octet-stream',
 ): Promise<string> {
   const blob = await mediaBlob(media, mimeType)
-  const url = URL.createObjectURL(blob)
-  urls.add(url)
-  return url
+  return URL.createObjectURL(blob)
 }
 
 export function revokeMediaUrl(url: string) {
-  urls.delete(url)
   URL.revokeObjectURL(url)
 }
 

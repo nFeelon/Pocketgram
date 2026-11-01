@@ -39,3 +39,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
 export const authReady = () => useAuthStore.setState({ stage: 'ready' })
 export const authError = (message: string) => useAuthStore.setState({ stage: 'error', error: message })
+/** an abandoned flow leaves a pending ask() — drop the resolver so it can't resolve later */
+export const clearAuthAsk = () => {
+  resolver = null
+}

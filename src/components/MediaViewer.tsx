@@ -44,7 +44,9 @@ export default function MediaViewer({ media, kind, mimeType, size, onClose }: Pr
   const fsVideo = useSettingsStore((s) => s.fsVideo)
   const tooBig = size !== undefined && size > MAX_PLAYABLE_BYTES
   const isAudio = kind === 'voice' || kind === 'audio'
-  const stream = kind !== 'photo'
+  // fsVideo: the system player must get ONE stable src — mid-play blob swaps kill
+  // it with a media error, so video downloads fully before the URL exists.
+  const stream = kind !== 'photo' && !(fsVideo && !isAudio)
   const mime =
     mimeType && mimeType !== 'application/octet-stream' ? mimeType : MIME_FALLBACK[kind]
 

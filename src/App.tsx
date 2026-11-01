@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Route, Routes } from 'react-router'
+import { Navigate, Route, Routes } from 'react-router'
 import { useAuthStore } from './store/auth.ts'
 import { useSettingsStore } from './store/settings.ts'
 import Auth from './screens/Auth.tsx'
@@ -32,6 +32,8 @@ export default function App() {
       <Route path="info/:peerId" element={<Info />} />
       <Route path="settings" element={<Settings />} />
       <Route path="about" element={<About />} />
+      {/* a stale/bad hash path would render a blank screen — fall back to the list */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }

@@ -12,7 +12,7 @@ import type { ChatMessage } from '../store/chat.ts'
 import { useDialogsStore } from '../store/dialogs.ts'
 import { tg } from '../tg/client.ts'
 import type { UserStatusUpdate } from '@mtcute/web'
-import { mediaUrl, revokeMediaUrl, mediaKind, displayMediaOf } from '../tg/media.ts'
+import { mediaUrl, revokeMediaUrl, mediaKind, displayMediaOf, MAX_PLAYABLE_BYTES } from '../tg/media.ts'
 import {
   loadInitial,
   loadTail,
@@ -32,7 +32,7 @@ import type { PeerMeta } from '../tg/peers.ts'
 import { useSettingsStore } from '../store/settings.ts'
 import { hasFeature } from '../utils/features.ts'
 import { useCleanHash } from '../utils/history.ts'
-import { formatDay, formatTime } from '../utils/format.ts'
+import { formatDay, formatTime, formatSize } from '../utils/format.ts'
 import './Chat.css'
 
 type DownloadableMedia = Parameters<typeof mediaUrl>[0]
@@ -68,6 +68,7 @@ export default function Chat() {
   const [canDownload, setCanDownload] = useState(false)
   const [peerMeta, setPeerMeta] = useState<PeerMeta | null>(null)
   const [delOpen, setDelOpen] = useState(false)
+  const [dlAsk, setDlAsk] = useState<ChatMessage | null>(null)
   const [pinned, setPinned] = useState<{ id: number; text: string } | null>(null)
   const [searchMode, setSearchMode] = useState<'input' | 'results' | null>(null)
   const [searchResults, setSearchResults] = useState<{ id: number; text: string; time: number }[]>([])
@@ -78,6 +79,8 @@ export default function Chat() {
   const threadTitle = useChatStore((s) => s.threadTitle)
   const [userStatus, setUserStatus] = useState('')
   const [feedLoaded, setFeedLoaded] = useState(false)
+  // DOM focus inside the composer — suppress the bubble's .msg-focused meanwhile
+  const [composerZone, setComposerZone] = useState(false)
   const composerRef = useRef<HTMLInputElement>(null)
   const sendRef = useRef<HTMLButtonElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -87,12 +90,16 @@ export default function Chat() {
   const prevMsgCount = useRef(0)
   const prevFirstId = useRef<number | undefined>(undefined)
   const lastRow = useRef(0)
+  // enabled softkeys in the bar below — zones past this land on no real button
+  const SK_COUNT = 2
   // live mirror of the composer text — passive cleanup can't read detached refs
   const draftRef = useRef('')
 
   const n = messages.length
-  const clamped = Math.min(Math.max(focused, 0), n + 2)
-  const rowFocused = clamped < n ? clamped : -1
+  // softkey zone: n..n+SK_COUNT-1 — the bar has start+end enabled, no center
+  const clamped = Math.min(Math.max(focused, 0), n + SK_COUNT - 1)
+  // while typing, nothing in the feed may look focused — two highlights confused nav
+  const rowFocused = clamped < n && !composerZone ? clamped : -1
 
   // peers opened from Contacts/Info aren't in the dialog list — fetch them once
   useEffect(() => {
@@ -121,6 +128,9 @@ export default function Chat() {
       useDialogsStore.getState().dialogs.find((d) => d.id === peerId)?.draft ?? ''
     draftRef.current = initial
     setFeedLoaded(false)
+    // Composer remounts on peer change without a focusout → stale composerZone
+    // would suppress .msg-focused forever in the new chat
+    setComposerZone(false)
     const cs = useChatStore.getState()
     // cached feed restored by open() → pull only the newer tail; detached → rebuild
     void (cs.messages.length && !cs.detached ? loadTail(peerId) : loadInitial(peerId))
@@ -336,7 +346,7 @@ export default function Chat() {
   }
 
   // spec: "Скачать" (FileDownload feature) — fetch blob, hand it to the browser download path
-  const downloadFocused = (m: ChatMessage) => {
+  const doDownload = (m: ChatMessage) => {
     if (!m.media) return
     void mediaUrl(m.media as DownloadableMedia, m.mimeType).then((url) => {
       const a = document.createElement('a')
@@ -347,11 +357,17 @@ export default function Chat() {
     })
   }
 
+  // oversized files buffer whole into memory — confirm before committing to it
+  const downloadFocused = (m: ChatMessage) => {
+    if (m.size && m.size > MAX_PLAYABLE_BYTES) setDlAsk(m)
+    else doDownload(m)
+  }
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName
       // inputs own their keys; Enter on a button clicks natively — don't double-handle
-      if (menuVisible || viewer || pinned || delOpen || tag === 'INPUT' || (tag === 'BUTTON' && e.key === 'Enter')) return
+      if (menuVisible || viewer || pinned || delOpen || dlAsk || tag === 'INPUT' || (tag === 'BUTTON' && e.key === 'Enter')) return
       if (searchMode === 'results') {
         // the overlay tracks its own index — bubbles keep theirs untouched
         e.preventDefault()
@@ -422,7 +438,7 @@ export default function Chat() {
             if (i >= 0 && i + 1 < ds.length) navigate(`/chat/${ds[i + 1].id}`, { replace: true })
           } else if (clamped >= n) {
             e.preventDefault()
-            setFocused(Math.min(n + 2, clamped + 1))
+            setFocused(Math.min(n + SK_COUNT - 1, clamped + 1))
           }
           break
         case '#':
@@ -574,15 +590,19 @@ export default function Chat() {
       )}
 
       {!readOnly && (
-        <Composer
-          key={peerId}
-          inputRef={composerRef}
-          sendRef={sendRef}
-          onSend={send}
-          onBelow={() => setFocused(n + 1)}
-          initialValue={dialog?.draft ?? peerMeta?.draft}
-          onDraftChange={(v) => (draftRef.current = v)}
-        />
+        // onFocus/onBlur = focusin/focusout — they bubble, so the wrapper sees both
+        // the input and the send button entering/leaving DOM focus
+        <div onFocus={() => setComposerZone(true)} onBlur={() => setComposerZone(false)}>
+          <Composer
+            key={peerId}
+            inputRef={composerRef}
+            sendRef={sendRef}
+            onSend={send}
+            onBelow={() => setFocused(n + 1)}
+            initialValue={dialog?.draft ?? peerMeta?.draft}
+            onDraftChange={(v) => (draftRef.current = v)}
+          />
+        </div>
       )}
 
       <OptionsMenu
@@ -642,6 +662,17 @@ export default function Chat() {
         />
       )}
 
+      {dlAsk && (
+        <Confirm
+          text={`Файл ${dlAsk.size ? formatSize(dlAsk.size) : ''} — скачать?`}
+          onConfirm={() => {
+            doDownload(dlAsk)
+            setDlAsk(null)
+          }}
+          onCancel={() => setDlAsk(null)}
+        />
+      )}
+
       {topics && (
         <div className="options-menu search-overlay">
           {topics.length === 0 && <p className="empty">Загрузка…</p>}
@@ -697,14 +728,25 @@ export default function Chat() {
             if (searchMode) closeSearch()
             else if (topics) closeTopics()
             else if (delOpen) setDelOpen(false)
+            else if (dlAsk) setDlAsk(null)
             else if (pinned) setPinned(null)
             else if (viewer) closeViewer()
             else if (menuVisible) closeMenu()
             else setMenuVisible(true)
           }
           // center row-Enter clicks natively; 'end' fires on button click —
-          // hardware RSK is history.back natively
-          if (pos === 'end') navigate(-1)
+          // hardware RSK is history.back natively. Confirm has no history entry —
+          // 'end' must peel overlays off first, not pop the chat screen under them
+          if (pos === 'end') {
+            if (delOpen) setDelOpen(false)
+            else if (dlAsk) setDlAsk(null)
+            else if (pinned) setPinned(null)
+            else if (viewer) closeViewer()
+            else if (searchMode) closeSearch()
+            else if (topics) closeTopics()
+            else if (menuVisible) closeMenu()
+            else navigate(-1)
+          }
         }}
       />
     </div>

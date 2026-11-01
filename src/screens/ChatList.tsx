@@ -15,9 +15,12 @@ import './ChatList.css'
 
 /**
  * Focus zones (D-pad, YouTube-style): -1 = search button, 0..n-1 = dialog rows,
- * n..n+2 = softkey bar buttons (start/center/end). Buttons get real DOM focus —
+ * n..n+SK_COUNT-1 = enabled softkey buttons. Buttons get real DOM focus —
  * Center on them clicks natively; ↓ on a softkey scrolls the list.
  */
+// enabled softkeys below: start + end. A zone past the last real button is a
+// dead stop whose Enter clicks whatever kept DOM focus.
+const SK_COUNT = 2
 export default function ChatList() {
   // '#menu' is kept — the menu state mirrors it and re-opens consistently
   useCleanHash('#menu')
@@ -74,7 +77,7 @@ export default function ChatList() {
       (!filter || d.title.toLowerCase().includes(filter.toLowerCase())),
   )
   const n = visible.length
-  const clamped = Math.min(Math.max(focused, -1), n + 2)
+  const clamped = Math.min(Math.max(focused, -1), n + SK_COUNT - 1)
   const rowFocused = clamped >= 0 && clamped < n ? clamped : -1
 
   const softkeyBtns = () =>
@@ -148,7 +151,7 @@ export default function ChatList() {
         case 'ArrowRight':
           if (clamped >= n) {
             e.preventDefault()
-            setFocused(Math.min(n + 2, clamped + 1))
+            setFocused(Math.min(n + SK_COUNT - 1, clamped + 1))
           }
           break
         case '*':
@@ -217,15 +220,15 @@ export default function ChatList() {
             <DialogRow dialog={d} />
           </div>
         ))}
-        {n === 0 && (
+        {n === 0 && status === 'loading' && (
+          <div className="center-loader">
+            <span className="spin" />
+            <p className="empty">Загрузка…</p>
+          </div>
+        )}
+        {n === 0 && status !== 'loading' && (
           <p className="empty">
-            {unreadOnly
-              ? 'Нет непрочитанных'
-              : status === 'loading'
-                ? 'Загрузка…'
-                : status === 'error'
-                  ? 'Ошибка загрузки'
-                  : 'Нет чатов'}
+            {unreadOnly ? 'Нет непрочитанных' : status === 'error' ? 'Ошибка загрузки' : 'Нет чатов'}
           </p>
         )}
       </div>
@@ -266,8 +269,13 @@ export default function ChatList() {
             else setMenuVisible(true)
           }
           // center row-Enter clicks natively; 'end' fires on button click —
-          // hardware RSK is history.back natively
-          if (pos === 'end') navigate(-1)
+          // hardware RSK is history.back natively. Confirm has no history entry —
+          // 'end' must cancel it first, not pop the screen under it
+          if (pos === 'end') {
+            if (exitOpen) setExitOpen(false)
+            else if (menuVisible) closeMenu()
+            else navigate(-1)
+          }
         }}
       />
     </div>

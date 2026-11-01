@@ -10,6 +10,86 @@
   margin: 4pt 0;
 }
 
+/* Info screen — profile card, not a text dump */
+.info-head {
+  display: flex;
+  align-items: center;
+  gap: 6pt;
+  margin: 0 0 4pt;
+}
+
+.info-head .avatar {
+  width: 32px;
+  height: 32px;
+  font-size: calc(13pt * var(--fs, 1));
+}
+
+.info-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.info-main p {
+  margin: 1pt 0;
+}
+
+.info-name {
+  font-weight: 700;
+  font-size: calc(11pt * var(--fs, 1));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.info-sub {
+  color: var(--fg3);
+  font-size: calc(8pt * var(--fs, 1));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.info-stats {
+  margin: 4pt 0;
+  padding: 3pt 0;
+  border-top: 1px solid var(--bg2);
+  border-bottom: 1px solid var(--bg2);
+  font-size: calc(9pt * var(--fs, 1));
+}
+
+.info-bio {
+  color: var(--fg2);
+  font-size: calc(9pt * var(--fs, 1));
+}
+
+.member {
+  display: flex;
+  align-items: center;
+  gap: 5pt;
+  padding: 2pt 0;
+}
+
+.member-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.member-main p {
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.member-name {
+  font-size: calc(9pt * var(--fs, 1));
+}
+
+.member-sub {
+  color: var(--fg3);
+  font-size: calc(8pt * var(--fs, 1));
+}
+
 .settings-body button,
 .members-btn {
   display: block;

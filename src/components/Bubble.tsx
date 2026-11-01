@@ -105,16 +105,20 @@ const Bubble = memo(function Bubble({
       case 'voice':
         return (
           <div className="media voice" role="button" aria-label="Голосовое">
-            <PlayIcon />
-            {msg.waveform && <Waveform bars={msg.waveform} />}
+            <span className="vplay">
+              <PlayIcon />
+            </span>
+            {msg.waveform ? <Waveform bars={msg.waveform} /> : <span className="vname">Голосовое</span>}
             <span className="media-meta">{msg.duration ? formatDuration(msg.duration) : ''}</span>
           </div>
         )
       case 'audio':
         return (
           <div className="media voice" role="button" aria-label="Аудио">
-            <PlayIcon />
-            <span>Аудио</span>
+            <span className="vplay">
+              <PlayIcon />
+            </span>
+            <span className="vname">Аудио</span>
             <span className="media-meta">{msg.duration ? formatDuration(msg.duration) : ''}</span>
           </div>
         )

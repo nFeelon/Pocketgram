@@ -15,7 +15,9 @@ interface ContactEntry {
   photo?: Parameters<typeof tg.downloadAsBuffer>[0]
 }
 
-/** Same focus zones as ChatList: -1 = search button, rows, n..n+2 = softkey bar */
+/** Same focus zones as ChatList: -1 = search button, rows, then the enabled softkeys */
+// only {end} is configured below — a phantom zone lands nowhere and Enter hits a stale button
+const SK_COUNT = 1
 export default function Contacts() {
   const navigate = useNavigate()
   useCleanHash()
@@ -49,15 +51,18 @@ export default function Contacts() {
     )
   }, [])
 
+  const digits = filter.replace(/\D/g, '')
   const visible = filter
     ? contacts.filter(
         (c) =>
           c.name.toLowerCase().includes(filter.toLowerCase()) ||
-          c.phone.replace(/\D/g, '').includes(filter.replace(/\D/g, '')),
+          // ''.includes('') is always true — the phone check needs a non-empty query
+          (digits !== '' && c.phone.replace(/\D/g, '').includes(digits)),
       )
     : contacts
   const n = visible.length
-  const clamped = Math.min(Math.max(focused, -1), n + 2)
+  // zone space: -1 = search button, 0..n-1 = rows, n..n+SK_COUNT-1 = enabled softkeys
+  const clamped = Math.min(Math.max(focused, -1), n + SK_COUNT - 1)
   const rowFocused = clamped >= 0 && clamped < n ? clamped : -1
 
   const softkeyBtns = () =>
@@ -106,7 +111,7 @@ export default function Contacts() {
         case 'ArrowRight':
           if (clamped >= n) {
             e.preventDefault()
-            setFocused(Math.min(n + 2, clamped + 1))
+            setFocused(Math.min(n + SK_COUNT - 1, clamped + 1))
           }
           break
         case 'Enter':

@@ -39,4 +39,9 @@ export default defineConfig(({ command }) => ({
     // @mtcute/wasm ships its own .wasm which vite pre-bundling breaks
     exclude: ['@mtcute/wasm'],
   },
+  test: {
+    // reference repos (dumbtalk-main, cloudphone-types-main) ship their own
+    // test suites — ours lives in src/ only
+    include: ['src/**/*.test.{ts,tsx}'],
+  },
 }))

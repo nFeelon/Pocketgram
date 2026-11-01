@@ -1,5 +1,5 @@
 import { tg } from './client.ts'
-import { useAuthStore } from '../store/auth.ts'
+import { useAuthStore, clearAuthAsk } from '../store/auth.ts'
 
 export type AuthField = 'phone' | 'code' | 'password'
 
@@ -76,12 +76,14 @@ export function signIn(
  */
 export function resendViaSms(ask: (field: AuthField) => Promise<string>) {
   flow = undefined
+  clearAuthAsk()
   return signIn(ask, { forceSms: true })
 }
 
 /** Restart the flow over QR login — bypasses code delivery entirely */
 export function loginViaQr(ask: (field: AuthField) => Promise<string>) {
   flow = undefined
+  clearAuthAsk()
   return signIn(ask, { qr: true })
 }
 
@@ -89,6 +91,7 @@ export function loginViaQr(ask: (field: AuthField) => Promise<string>) {
 export function loginViaPhone(ask: (field: AuthField) => Promise<string>) {
   flow = undefined
   lastPhone = undefined
+  clearAuthAsk()
   useAuthStore.setState({ stage: 'boot', qrImg: null })
   return signIn(ask)
 }
@@ -102,8 +105,13 @@ export async function signOut() {
     lastPhone = undefined
     // wait for deletion before reload — otherwise reload wins the race and the session survives
     await new Promise<void>((resolve) => {
-      const req = indexedDB.deleteDatabase('pocketgram')
-      req.onsuccess = req.onerror = req.onblocked = () => resolve()
+      let done = 0
+      const fin = () => ++done === 2 && resolve()
+      // media blobs of the previous account must not greet the next sign-in
+      for (const name of ['pocketgram', 'pg-media-cache']) {
+        const req = indexedDB.deleteDatabase(name)
+        req.onsuccess = req.onerror = req.onblocked = fin
+      }
     })
     location.reload()
   }

@@ -138,7 +138,12 @@ export default function Auth() {
             </button>
           </>
         )}
-        {stage === 'boot' && <p className="auth-hint">Подключение…</p>}
+        {stage === 'boot' && (
+          <div className="center-loader">
+            <span className="spin" />
+            <p className="auth-hint">Подключение…</p>
+          </div>
+        )}
         {error && <p className="auth-error">{error}</p>}
         {stage === 'error' && (
           <button autoFocus onClick={() => location.reload()}>
