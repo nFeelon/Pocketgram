@@ -14,6 +14,7 @@ const FIELD_META: Record<AuthField, { label: string; hint: string; type: 'tel' |
 export default function Auth() {
   const stage = useAuthStore((s) => s.stage)
   const error = useAuthStore((s) => s.error)
+  const codeVia = useAuthStore((s) => s.codeVia)
   const submit = useAuthStore((s) => s.submit)
   const ask = useAuthStore((s) => s._ask)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -42,10 +43,10 @@ export default function Auth() {
 
   const submitField = () => {
     const v = inputRef.current?.value.trim()
-    if (v) {
-      inputRef.current!.value = ''
-      submit(v)
-    }
+    if (!v) return
+    // phone/code fields: drop formatting junk before it reaches the API (password kept as typed)
+    submit(stage === 'password' ? v : v.replace(/[^\d+]/g, ''))
+    inputRef.current!.value = ''
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -78,6 +79,7 @@ export default function Auth() {
               Продолжить
             </button>
             <p className="auth-hint">Центр — ввод · ↓ — к кнопке</p>
+            {codeVia && <p className="auth-hint">{codeVia}</p>}
           </>
         )}
         {stage === 'boot' && <p className="auth-hint">Подключение…</p>}

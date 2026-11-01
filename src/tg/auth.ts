@@ -10,12 +10,27 @@ let flow: ReturnType<typeof tg.start> | undefined
  * Drives tg.start() where each credential request is delegated to the UI:
  * `ask` must return a promise resolved when the user submits the field.
  */
+// where Telegram actually sent the code — surfaced in the UI (device has no console)
+const VIA: Record<string, string> = {
+  app: 'в Telegram (сервисный чат)',
+  sms: 'по SMS',
+  sms_word: 'по SMS',
+  sms_phrase: 'по SMS',
+  call: 'звонком',
+  flash_call: 'звонком — код = последние цифры номера',
+  missed_call: 'звонком — код = последние цифры номера',
+  email: 'на e-mail',
+}
+
 export function signIn(ask: (field: AuthField) => Promise<string>) {
   flow ??= tg
     .start({
       phone: () => ask('phone'),
       code: () => ask('code'),
       password: () => ask('password'),
+      // fires after Telegram accepted the number — the request definitely went out
+      codeSentCallback: (sent) =>
+        useAuthStore.setState({ codeVia: `Код отправлен: ${VIA[sent.type] ?? sent.type}` }),
       invalidCodeCallback: (type) =>
         useAuthStore.setState({
           error: type === 'code' ? 'Неверный код, попробуйте ещё раз' : 'Неверный пароль',

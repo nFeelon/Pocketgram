@@ -7,6 +7,8 @@ interface AuthState {
   stage: AuthStage
   error: string | null
   selfName: string | null
+  /** where Telegram delivered the code (from codeSentCallback) — shown under the code field */
+  codeVia: string | null
   /** UI submits the current field value → resolves the pending ask() */
   submit: (value: string) => void
   /** internal: wire a pending credential request */
@@ -20,6 +22,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   stage: 'boot',
   error: null,
   selfName: null,
+  codeVia: null,
   submit: (value) => {
     resolver?.(value)
     resolver = null
