@@ -21,6 +21,8 @@ export interface ChatMessage {
   replyTo?: { id: number | null; text: string }
   /** Video.isAnimation — renders as a silent thumb, no viewer */
   isGif?: boolean
+  /** reaction chips: emoji + count (+whether we reacted) — display only */
+  reacts?: { e: string; n: number; mine: boolean }[]
 }
 
 export interface Compose {
@@ -98,7 +100,12 @@ export const useChatStore = create<ChatState>((set) => ({
   append: (m) =>
     // dedup: sendText's result and the onNewMessage update can carry the same message
     set((s) => (s.messages.some((x) => x.id === m.id) ? s : { messages: [...s.messages, m] })),
-  prepend: (ms) => set((s) => ({ messages: [...ms, ...s.messages] })),
+  prepend: (ms) =>
+    // a paged overlap would insert the same id twice — drop page copies
+    set((s) => {
+      const have = new Set(s.messages.map((x) => x.id))
+      return { messages: [...ms.filter((m) => !have.has(m.id)), ...s.messages] }
+    }),
   replace: (id, m) =>
     // the onNewMessage update may have already appended the real message — then just drop the temp one
     // (id === m.id is an in-place edit, never a drop)

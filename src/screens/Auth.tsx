@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { signIn, resendViaSms, loginViaQr, loginViaPhone } from '../tg/auth.ts'
 import type { AuthField } from '../tg/auth.ts'
-import { useAuthStore, authReady, authError } from '../store/auth.ts'
+import { useAuthStore, authReady, authError, AbandonedAuthFlow } from '../store/auth.ts'
 import './Auth.css'
 
 const FIELD_META: Record<AuthField, { label: string; hint: string; type: 'tel' | 'text' | 'password' }> = {
@@ -28,17 +28,30 @@ export default function Auth() {
     useAuthStore.setState({ selfName: self.displayName })
     authReady()
   }
-  const flowErr = (e: unknown) =>
+  const flowErr = (e: unknown) => {
+    // an abandoned start() dies on its pending ask — that's us restarting, not a failure
+    if (e instanceof AbandonedAuthFlow) return
     authError(
       (e instanceof Error ? e.message : String(e)).replace(
         /FLOOD_WAIT_(\d+)/,
         'Слишком часто — подождите $1 с',
       ),
     )
+  }
+
+  // newest request wins — a superseded flow settling late must not touch the UI
+  const seq = useRef(0)
+  const run = (p: ReturnType<typeof signIn>) => {
+    const id = ++seq.current
+    void p.then(
+      (v) => id === seq.current && flowOk(v),
+      (e) => id === seq.current && flowErr(e),
+    )
+  }
 
   // Boot: restore session or run the interactive login flow exactly once
   useEffect(() => {
-    signIn(ask).then(flowOk).catch(flowErr)
+    run(signIn(ask))
   }, [])
 
   useEffect(() => inputRef.current?.focus(), [stage])
@@ -86,7 +99,7 @@ export default function Auth() {
               <button
                 ref={smsRef}
                 className="auth-next secondary"
-                onClick={() => void resendViaSms(ask).then(flowOk).catch(flowErr)}
+                onClick={() => run(resendViaSms(ask))}
                 onKeyDown={(e) => {
                   if (e.key === 'ArrowUp') nextRef.current?.focus()
                 }}
@@ -98,7 +111,7 @@ export default function Auth() {
               <button
                 ref={qrRef}
                 className="auth-next secondary"
-                onClick={() => void loginViaQr(ask).then(flowOk).catch(flowErr)}
+                onClick={() => run(loginViaQr(ask))}
                 onKeyDown={(e) => {
                   if (e.key === 'ArrowUp') nextRef.current?.focus()
                 }}
@@ -129,7 +142,7 @@ export default function Auth() {
             <button
               ref={backRef}
               className="auth-next secondary"
-              onClick={() => void loginViaPhone(ask).then(flowOk).catch(flowErr)}
+              onClick={() => run(loginViaPhone(ask))}
               onKeyDown={(e) => {
                 if (e.key === 'ArrowUp') qrImgRef.current?.focus()
               }}

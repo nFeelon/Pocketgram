@@ -4,7 +4,7 @@ import { describe, it, expect, vi } from 'vitest'
 vi.mock('./client.ts', () => ({ tg: {} }))
 
 import { mediaKind } from './media.ts'
-import { formatDuration, formatSize } from '../utils/format.ts'
+import { formatDuration, formatSize, formatListTime } from '../utils/format.ts'
 
 // mediaKind drives every media render path — a wrong bucket means a video is
 // offered to the audio player, or a playable file renders as dead text
@@ -40,5 +40,19 @@ describe('formatDuration', () => {
     expect(formatDuration(0)).toBe('0:00')
     expect(formatDuration(83)).toBe('1:23')
     expect(formatDuration(600)).toBe('10:00')
+  })
+})
+
+describe('formatListTime', () => {
+  it('shows HH:MM today, DD.MM otherwise', () => {
+    expect(formatListTime(Date.now() / 1000)).toMatch(/^\d{2}:\d{2}$/)
+
+    const y = new Date()
+    y.setDate(y.getDate() - 1)
+    expect(formatListTime(y.getTime() / 1000)).toMatch(/^\d{2}\.\d{2}$/)
+
+    const lastYear = new Date()
+    lastYear.setFullYear(lastYear.getFullYear() - 1)
+    expect(formatListTime(lastYear.getTime() / 1000)).toMatch(/^\d{2}\.\d{2}$/)
   })
 })

@@ -9,10 +9,11 @@
   white-space: nowrap;
 }
 
-/* names scroll whenever they overflow; previews only while the row is focused */
+/* names scroll whenever they overflow; previews only while the row is focused.
+ * --md is set per element so speed stays uniform whatever the overflow is */
 .mq.has-overflow:not(.mq-wf) .mq-inner,
 .focused .mq.mq-wf.has-overflow .mq-inner {
-  animation: mq-scroll 6s ease-in-out infinite alternate;
+  animation: mq-scroll var(--md, 6s) linear infinite alternate;
 }
 
 @keyframes mq-scroll {

@@ -1,5 +1,6 @@
 import { tg } from './client.ts'
-import { useAuthStore, clearAuthAsk } from '../store/auth.ts'
+import { useAuthStore, clearAuthAsk, authError } from '../store/auth.ts'
+import { closeMediaCache } from './cache.ts'
 
 export type AuthField = 'phone' | 'code' | 'password'
 
@@ -33,7 +34,7 @@ export function signIn(
 ) {
   if (flow) return flow
   const gen = ++flowGen
-  flow = tg
+  const p = tg
     .start({
       phone: () => lastPhone ?? ask('phone').then((v) => (lastPhone = v)),
       forceSms: opts.forceSms ?? false,
@@ -63,10 +64,18 @@ export function signIn(
       },
     })
     .catch((e) => {
-      flow = undefined
+      // clear only OUR promise — an abandoned flow dying late must not kill its successor
+      if (flow === p) flow = undefined
       throw e
     })
-  return flow
+  flow = p
+  return p
+}
+
+// abandon the running start(): swallow its pending rejection and drop the reference
+const dropFlow = () => {
+  void flow?.catch(() => {})
+  flow = undefined
 }
 
 /**
@@ -75,25 +84,40 @@ export function signIn(
  * A plain tg.resendCode() would mint a new hash that the running start() never sees.
  */
 export function resendViaSms(ask: (field: AuthField) => Promise<string>) {
-  flow = undefined
+  dropFlow()
   clearAuthAsk()
   return signIn(ask, { forceSms: true })
 }
 
 /** Restart the flow over QR login — bypasses code delivery entirely */
 export function loginViaQr(ask: (field: AuthField) => Promise<string>) {
-  flow = undefined
+  dropFlow()
   clearAuthAsk()
   return signIn(ask, { qr: true })
 }
 
 /** Back to the phone-number flow — clears the cached phone so it can be re-entered */
 export function loginViaPhone(ask: (field: AuthField) => Promise<string>) {
-  flow = undefined
+  dropFlow()
   lastPhone = undefined
   clearAuthAsk()
   useAuthStore.setState({ stage: 'boot', qrImg: null })
   return signIn(ask)
+}
+
+/** session died server-side (revoked/key unregistered) — every RPC now fails */
+export function isAuthFatal(e: unknown): boolean {
+  const code = (e as { code?: number } | null)?.code
+  const msg = e instanceof Error ? e.message : String(e)
+  return code === 401 || /AUTH_KEY|SESSION_REVOKED|USER_DEACTIVATED/.test(msg)
+}
+
+/** `.catch(logErr)` — routes auth-fatal RPC errors back to the login screen, logs the rest */
+export const logErr = (e: unknown) => {
+  if (!isAuthFatal(e)) return console.error(e)
+  dropFlow()
+  clearAuthAsk()
+  authError('Сессия отозвана — войдите снова')
 }
 
 /** Terminate the Telegram session, drop the local session store and restart */
@@ -101,8 +125,12 @@ export async function signOut() {
   try {
     await tg.call({ _: 'auth.logOut' })
   } finally {
-    flow = undefined
+    dropFlow()
     lastPhone = undefined
+    clearAuthAsk()
+    // release every IDB handle first — deleteDatabase blocks on open connections
+    await tg.destroy().catch(() => {})
+    closeMediaCache()
     // wait for deletion before reload — otherwise reload wins the race and the session survives
     await new Promise<void>((resolve) => {
       let done = 0
@@ -110,7 +138,15 @@ export async function signOut() {
       // media blobs of the previous account must not greet the next sign-in
       for (const name of ['pocketgram', 'pg-media-cache']) {
         const req = indexedDB.deleteDatabase(name)
-        req.onsuccess = req.onerror = req.onblocked = fin
+        // onblocked may be followed by onsuccess on the same request — count it once
+        let settled = false
+        const once = () => {
+          if (!settled) {
+            settled = true
+            fin()
+          }
+        }
+        req.onsuccess = req.onerror = req.onblocked = once
       }
     })
     location.reload()

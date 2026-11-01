@@ -18,6 +18,7 @@ interface AuthState {
 }
 
 let resolver: ((v: string) => void) | null = null
+let rejector: ((e: Error) => void) | null = null
 
 export const useAuthStore = create<AuthState>((set) => ({
   // 'boot' — until tg.start resolves (existing session restores silently, no field flash)
@@ -28,18 +29,29 @@ export const useAuthStore = create<AuthState>((set) => ({
   qrImg: null,
   submit: (value) => {
     resolver?.(value)
-    resolver = null
+    resolver = rejector = null
   },
   _ask: (field) =>
-    new Promise<string>((resolve) => {
+    new Promise<string>((resolve, reject) => {
       resolver = resolve
+      rejector = reject
       set({ stage: field, error: null })
     }),
 }))
 
 export const authReady = () => useAuthStore.setState({ stage: 'ready' })
 export const authError = (message: string) => useAuthStore.setState({ stage: 'error', error: message })
-/** an abandoned flow leaves a pending ask() — drop the resolver so it can't resolve later */
+
+/** rejection used to kill an abandoned start()'s pending ask — UI must ignore it */
+export class AbandonedAuthFlow extends Error {
+  constructor() {
+    super('auth flow restarted')
+    this.name = 'AbandonedAuthFlow'
+  }
+}
+
+/** an abandoned flow leaves a pending ask() — reject it so the orphaned tg.start() can die */
 export const clearAuthAsk = () => {
-  resolver = null
+  rejector?.(new AbandonedAuthFlow())
+  resolver = rejector = null
 }

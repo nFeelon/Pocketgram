@@ -83,10 +83,11 @@ src/
 │   ├── client.ts            # singleton: new TelegramClient(...) + onConnectionState → conn store
 │   ├── auth.ts              # signIn(ask) → tg.start({phone,code,password}); signOut
 │   ├── dialogs.ts           # iterDialogs → DialogEntry (+readOutbox, draft)
-│   ├── messages.ts          # mapMessage, история/jumpTo, send/edit/delete/forward/draft, initUpdates
+│   ├── messages.ts          # mapMessage (+реакции), история/jumpTo, send/edit/delete/forward/draft, initUpdates
 │   ├── peers.ts             # statusText (last-seen), peerInfo (peer вне списка диалогов)
 │   ├── notify.ts            # WAV-бип в коде + vibrate по настройкам
-│   └── media.ts             # mediaKind(), mediaUrl()→blob URL, thumbOf(), MAX_PLAYABLE_BYTES
+│   ├── cache.ts             # IndexedDB pg-media-cache: аватары+медиа, лимит, evict четверти
+│   └── media.ts             # mediaKind(), mediaUrl()→blob URL, thumbOf(), MAX_PLAYABLE_BYTES; media.test.ts (vitest)
 ├── store/
 │   ├── auth.ts              # stage: boot|phone|code|password|ready|error + submit/_ask
 │   ├── dialogs.ts           # DialogEntry[] {id,title,type,preview,time,unread,pinned,readOutbox,draft}
@@ -102,18 +103,20 @@ src/
 │   ├── Settings.tsx         # шрифт/тема/звук/вибро/Не беспокоить/миниатюры
 │   └── About.tsx
 ├── components/
-│   ├── Header.tsx(.css)     # заголовок + статус; marquee для длинных имён (бэклог)
-│   ├── SoftKeyBar.tsx(.css) # LSK(Escape)/CSK(Enter); RSK не перехватывается
+│   ├── Header.tsx(.css)     # заголовок + статус; длинные имена — marquee
+│   ├── SoftKeyBar.tsx(.css) # LSK(Escape)/CSK(Enter); RSK — событие 'back' → 'end'-действие
 │   ├── OptionsMenu.tsx(.css)# полноэкранное меню, открывается через history entry
 │   ├── DialogRow.tsx(.css)  # строка чата: аватар, имя, превью, время, unread, pin
-│   ├── Bubble.tsx(.css)     # пузырь сообщения + медиа-плейсхолдеры + waveform SVG
+│   ├── Bubble.tsx(.css)     # пузырь + медиа-плейсхолдеры + waveform + чипы реакций
 │   ├── Composer.tsx(.css)   # поле ввода
-│   ├── MediaViewer.tsx(.css)# фуллскрин фото/видео (history entry)
-│   ├── Avatar.tsx(.css)     # круг с инициалом, дет. цвет по id; фото — бэклог
+│   ├── MediaViewer.tsx(.css)# фото/видео/кружки/голосовые/аудио (history entry)
+│   ├── Marquee.tsx(.css)    # бегущая строка, равномерная скорость (~18px/с)
+│   ├── Avatar.tsx(.css)     # фото из кэша или круг с инициалом, дет. цвет по id
 │   └── Confirm.tsx(.css)    # alert()-замена
 ├── utils/
 │   ├── focus.ts             # FOCUSABLE_CSS_SELECTOR, findFirstFocusable
 │   ├── format.ts            # время, длительность, размер, инициал
+│   ├── history.ts           # handleBack: 'back'-ивент → 'end' либо дефолт на корне
 │   └── features.ts          # navigator.hasFeature() с fallback
 └── assets/icons/*.svg       # menu, back, select, play, pin
 ```
@@ -122,7 +125,7 @@ src/
 `Auth.tsx` один раз вызывает `signIn(ask)`: `ask(field)` ставит `stage` в store и возвращает промис; `submit(value)` его резолвит. mtcute сама повторит запрос при неверном коде/пароле (`invalidCodeCallback`). Хранилище `storage:'pocketgram'` → при наличии сессии `tg.start` вернётся сразу, без вопросов (автовход). Ошибки (`RpcError`: PHONE_CODE_INVALID, FLOOD_WAIT_N, SESSION_REVOKED) — текстом под полем, FLOOD_WAIT с секундами.
 
 ### Диалоги
-`tg.iterDialogs({limit: 50})` → `Dialog[]` → маппинг в `DialogEntry` (тип из `dialog.peer`: user/chat/channel; `unreadCount`, `isPinned`, последнее сообщение → preview+time). Сортировка: pinned ↑, дальше по времени. Обновление: `Обновить` в меню + апдейты (ниже).
+`tg.iterDialogs({limit: 100})` → `Dialog[]` → маппинг в `DialogEntry` (тип из `dialog.peer`: user/chat/channel; `unreadCount`, `isPinned`, последнее сообщение → preview+time). Сортировка: pinned ↑, дальше по времени. Обновление: `Обновить` в меню + апдейты (ниже).
 
 ### Сообщения
 `tg.getHistory(peerId, {limit: 30, offset})` → `Message[]`; ленивая подгрузка при скролле к верху. Маппинг: `msg.isOutgoing → out`, `msg.date → time`, `msg.text` (entities → plain text v1), `msg.media → mediaKind`.
@@ -134,14 +137,14 @@ src/
 | Тип | mtcute | Рендер |
 |---|---|---|
 | Фото | `Photo` | thumb в пузыре → Enter → MediaViewer фуллскрин |
-| Видео | `Video` (`isRound=false`) | превью + ▶ + `длит. · размер`; Enter → `<video controls autoPlay>` (нативный фуллскрин) |
+| Видео | `Video` (`isRound=false`) | превью + ▶ + `длит. · размер`; Enter → MediaViewer: инлайн (`x-puffin-playsinline`, стриминг растущим blob) или системный плеер — настройка `fsVideo` |
 | Кружочек | `Video` (`isRound=true`) | то же, что видео |
-| Голосовое | `Voice` (`duration`, `waveform`) | ▶ + SVG-waveform + длит.; Enter → `<audio>`; seek только если фича `AudioSeek` |
-| Аудиофайл | `Audio` | строка-элемент → `<audio>` |
+| Голосовое | `Voice` (`duration`, `waveform`) | круглая ▶ + волна + длит.; Enter → MediaViewer `<audio controls>` |
+| Аудиофайл | `Audio` | строка-элемент → MediaViewer `<audio controls>` |
 | Стикер | `Sticker` webp | картинка; tgs/видео-стикеры → `[Стикер]` |
-| Прочее | `Document` и пр. | `[Файл · размер]` |
+| Прочее | `Document` и пр. | `[Файл · размер]`; «Скачать» через `<a download>` (фича `FileDownload`), >48 МБ — с подтверждением |
 
-**Без MSE видео нельзя стримить чанками** — `downloadAsBuffer` качает файл целиком в память. Лимит `MAX_PLAYABLE_BYTES = 48 МБ` (IndexedDB blob ≤50МБ); больше — «скачать» через `<a download>` (фича `FileDownload`). Форматы: гарантирован MP4/H.264+AAC — почти все Telegram-видео такие; MKV/HEVC → «Формат не поддерживается». `x-puffin-playsinline` для инлайн-превью, если полноэкранный режим окажется неудобен.
+**Без MSE видео нельзя стримить по-настоящему** — инлайн-режим эмулирует стриминг: URL пересоздаётся по мере прихода чанков (с restore позиции). В системном режиме (`fsVideo`) файл качается целиком до создания URL — один стабильный src, системный плеер не теряет источник. `<video controls>` не используется нигде: нативные контролы съедают нажатие центра и рисуют градиент на полэкрана — play/pause на наш `Enter`. Лимит `MAX_PLAYABLE_BYTES = 48 МБ` (IndexedDB blob ≤50МБ). MIME у блоба нормализуется по типу медиа (пустой/`octet-stream` → `video/mp4`, `audio/ogg` и т.д.).
 
 ---
 
@@ -164,7 +167,7 @@ src/
 
 ### Chat (`/chat/:peerId`)
 - Хедер: имя собеседника + статус («канал», у user-диалогов — last-seen «в сети»/«был …», обновляется по `onUserStatusUpdate`). Точка соединения слева при offline/connecting.
-- Лента: `in`/`out` пузыри, разделители дат, имя отправителя в группах, плашка `↩` у ответов, `изм.` у правок, статусы `⏱`/`✓`/`✓✓` у исходящих (`lastReadOutgoing` + `onHistoryRead`), миниатюры (отключаемо в настройках), GIF — статично.
+- Лента: `in`/`out` пузыри, разделители дат (видны при переходе фокуса на первое сообщение дня), имя отправителя в группах, плашка `↩` у ответов, `изм.` у правок, статусы `⏱`/`✓`/`✓✓` у исходящих (`lastReadOutgoing` + `onHistoryRead`), чипы реакций (read-only), миниатюры (отключаемо), GIF — статично. Пузырь выше экрана: `↑↓` сначала скроллят его внутри (по 48px), потом переносят фокус — любое сообщение читается целиком.
 - Композер: `<input placeholder="Сообщение…">` + кнопка `➤`; черновик подхватывается из `dialog.draftMessage` и сохраняется `saveDraft` при выходе; плашка `↩`/`✎` в режиме ответа/правки (Esc — отмена). В read-only каналах композер скрыт.
 - Клавиши: `↑↓` фокус по сообщениям (старт с последнего/запомненного) → поле → `➤` → нижний бар; `#` — к последнему сообщению (после прыжка — перезагрузка хвоста); `←→` на пузыре — соседний диалог; `Enter` — фото/видео → MediaViewer, голосовое/аудио → play/stop, текстовый ответ → переход к оригиналу; LSK — меню действий (*Ответить · Цитировать · Переслать · Открыть ссылку · Изменить · Удалить · Поиск · Закреплённое · Информация · Без звука · Прочитано · Скачать*), RSK — назад.
 - Поиск в чате (`#search` history entry): поле + «Найти» → `searchMessages` → список результатов → центр → `jumpTo` (история вокруг сообщения, лента помечается `detached`).
@@ -173,13 +176,13 @@ src/
 - `getContacts()` → строки аватар+имя+телефон, фильтр по имени/цифрам, та же фокус-модель, что в списке чатов. Центр → `/chat/:id` (peer вне списка диалогов подтягивается через `peerInfo`).
 
 ### Info (`/info/:peerId`)
-- `getFullUser`/`getFullChat` → имя, @username, телефон, статус/bio, участников/в сети; кнопка «Участники» (`canViewParticipants`) → `getChatMembers` списком ниже. `↑↓` — скролл/кнопка, как в About.
+- `getFullUser`/`getFullChat` → карточка: большой аватар, имя, @username, телефон, статус, тип (канал/группа), участников/подписчиков/в сети, bio-блок; кнопка «Участники» (`canViewParticipants`, со спиннером загрузки) → `getChatMembers` строками аватар+имя+статус. `↑↓` — скролл/кнопка.
 
 ### Settings (`/settings`)
-- Кнопки-строки: `Шрифт 9–12pt` (`--fs` на :root), `Тема` (`data-theme`), `Звук`, `Вибрация`, `Не беспокоить`, `Миниатюры`, строка `Соединение`. Persist в localStorage `pg-settings`.
+- Кнопки-строки: `Шрифт 9–12pt` (`--fs` на :root), `Тема` (`data-theme`), `Звук`, `Вибрация`, `Не беспокоить`, `Миниатюры`, `Видео: инлайн/системное` (`fsVideo`), строка `Соединение`. Persist в localStorage `pg-settings`.
 
 ### MediaViewer (оверлей + history entry)
-- Фото — `object-fit: contain` на весь экран; видео/кружок — нативный `<video controls>`; перед загрузкой показать размер файла; RSK/Esc — закрыть.
+- Фото — `object-fit: contain`; видео/кружок — `<video>` без controls: центр — play/pause, `↑↓` — громкость (`volumeManager`), `x-puffin-playsinline` только в инлайн-режиме; голосовые/аудио — `<audio controls>`. Прогресс загрузки в %, hint-строка с ошибкой `play()`. RSK/Esc — закрыть.
 
 ---
 
@@ -187,7 +190,7 @@ src/
 
 - **Сессия MTProto** — IndexedDB (`storage:'pocketgram'`): шифруется ключом с устройства на стороне CloudMosa; Clear Data → перелогин.
 - **Настройки** — localStorage.
-- **Медиа-кэш** — не кэшируем между сессиями (HTTP-кэш эфемерен); blob URL живут до закрытия экрана, ревокаем через `revokeMediaUrl`. Аватары — бэклог (IndexedDB, LRU).
+- **Медиа-кэш** — IndexedDB `pg-media-cache`: аватары и скачанное медиа по `uniqueFileId`, ленивое открытие БД, evict старой четверти при переполнении, dedup одновременных загрузок; очищается при выходе из аккаунта. blob URL живут до закрытия экрана.
 - **Доверие**: MTProto завершается на сервере CloudMosa — сообщения расшифровываются там, как и в любом «облачном браузере». Это надо явно принимать (аналогично использованию вебкафе). Secret chats поэтому невозможны в принципе.
 
 ---
@@ -210,7 +213,7 @@ src/
 |---|---|---|---|
 | 1 | **Дешифровка на сервере CloudMosa** | MTProto-сессия и контент живут в их Chromium | Модель доверия = удалённый браузер; фиксируется в ТЗ; не хранить там 2FA-пароль (вводится каждый раз только при логине) |
 | 2 | **IP дата-центра** | Логин с IP CloudMosa (Сингапур/США) → уведомление «вход с нового устройства» из другой страны | Ожидаемо; одноразовое; не паниковать при push |
-| 3 | **Нет MSE** | Видео только полной буферизацией в память | Лимит ~48 МБ + fallback на `<a download>` |
+| 3 | **Нет MSE** | Инлайн-видео — эмуляция стриминга растущим blob URL; системный режим — полная загрузка | Лимит ~48 МБ + fallback на `<a download>` |
 | 4 | **Кодеки** | Гарантирован H.264+AAC/MP4; HEVC нет; MKV-контейнер нет | «Формат не поддерживается» + скачивание |
 | 5 | **Трафик пользователя** | Видео ≈120 МБ/час QQVGA; анимации тоже жгут | Размер перед проигрыванием; минимум анимаций; статичные превью |
 | 6 | **Flood limits** | Telegram rate-limit на auth и getHistory | Backoff из RpcError (`FLOOD_WAIT_N`), подгрузка по 30, без агрессивных поллингов |
@@ -227,6 +230,7 @@ src/
 
 ## 9. Тест-план
 
+0. **Юнит-тесты**: `npm test` (vitest, `src/**/*.test.ts` — чистая логика tg/utils).
 1. **Chrome DevTools**: responsive 128×160 и 240×320; стрелки/Enter/Escape/`0-9`; прогон всех экранов; `document.title`.
 2. **Cloud Phone Simulator** (cloudphone.tech/my/simulator): QVGA+QQVGA; проверить WASM-авторизацию, WS-соединение с Telegram DC, рендер списков. Помнить: нет file upload/volume/mic.
 3. **Устройство**: developer mode → IMEI → виджет в конце списка; прогон: логин → список → чат → фото/видео/голосовое → меню → выход/вход (persist сессии).
@@ -237,4 +241,4 @@ src/
 
 ## 10. Вне скоупа v1 (бэклог)
 
-Отправка фото/файлов (`FileUpload`/`ImageUpload`), запись голосовых (`AudioCapture` + MediaRecorder→opus — спорно), эмодзи-пикер, T9-jump по списку, аватары-фото, marquee в хедере, typing-индикаторы, tgs-анимации, реакции, i18n, QVGA-полировка.
+Отправка фото/файлов (`FileUpload`/`ImageUpload`), запись голосовых (`AudioCapture` + MediaRecorder→opus — спорно), эмодзи-пикер, T9-jump по списку, **установка реакций** (`sendReaction` — показ уже есть), live-обновление реакций, typing-индикаторы, tgs-анимации, i18n, QVGA-полировка.

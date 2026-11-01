@@ -130,3 +130,10 @@ export async function clearMediaCache(): Promise<void> {
     t.onerror = () => reject(t.error)
   })
 }
+
+/** close the held connection — deleteDatabase() blocks while our own conn stays open */
+export function closeMediaCache(): void {
+  const p = dbp
+  dbp = undefined
+  void p?.then((c) => c.close()).catch(() => {})
+}

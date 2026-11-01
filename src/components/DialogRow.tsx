@@ -3,7 +3,7 @@ import { useSettingsStore } from '../store/settings.ts'
 import Avatar from './Avatar.tsx'
 import Marquee from './Marquee.tsx'
 import PinIcon from '../assets/icons/pin.svg?react'
-import { formatTime } from '../utils/format.ts'
+import { formatListTime } from '../utils/format.ts'
 import './DialogRow.css'
 
 export default function DialogRow({ dialog }: { dialog: DialogEntry }) {
@@ -17,7 +17,7 @@ export default function DialogRow({ dialog }: { dialog: DialogEntry }) {
             <Marquee text={dialog.title} />
           </span>
           {dialog.pinned && <PinIcon className="pin" />}
-          {dialog.time > 0 && <span className="dialog-time">{formatTime(dialog.time)}</span>}
+          {dialog.time > 0 && <span className="dialog-time">{formatListTime(dialog.time)}</span>}
         </div>
         <div className="dialog-bottom">
           <span className={`dialog-preview${dialog.draft ? ' draft' : ''}`}>

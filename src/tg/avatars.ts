@@ -1,5 +1,6 @@
 import { tg } from './client.ts'
 import { mediaBlob } from './media.ts'
+import { logErr } from './auth.ts'
 
 type Location = Parameters<typeof tg.downloadAsBuffer>[0]
 
@@ -14,7 +15,7 @@ export function avatarUrl(peerId: string, loc?: Location | null): Promise<string
   let p = cache.get(peerId)
   if (!p) {
     p = (loc ? download(loc) : fetchAvatar(peerId)).catch((e) => {
-      console.error(e)
+      logErr(e)
       return null
     })
     cache.set(peerId, p)

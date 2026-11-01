@@ -6,7 +6,7 @@ import DialogRow from '../components/DialogRow.tsx'
 import Confirm from '../components/Confirm.tsx'
 import { useDialogsStore } from '../store/dialogs.ts'
 import { useConnStore } from '../store/conn.ts'
-import { signOut } from '../tg/auth.ts'
+import { logErr, signOut } from '../tg/auth.ts'
 import { loadDialogs } from '../tg/dialogs.ts'
 import { initUpdates, forwardMessage } from '../tg/messages.ts'
 import { useCleanHash } from '../utils/history.ts'
@@ -58,7 +58,7 @@ export default function ChatList() {
         flashBar('Обновлено')
       },
       (e) => {
-        console.error(e)
+        logErr(e)
         setStatus('error')
         flashBar('Ошибка загрузки')
       },
@@ -96,7 +96,7 @@ export default function ChatList() {
         // landing inside the target chat is the visible confirmation
         .then(() => navigate(`/chat/${d.id}`, { replace: true }))
         .catch((e) => {
-          console.error(e)
+          logErr(e)
           forwardBusy.current = false
           flashBar('Ошибка пересылки')
         })

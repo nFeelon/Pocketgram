@@ -27,6 +27,7 @@ import {
   getTopics,
 } from '../tg/messages.ts'
 import type { Topic } from '../tg/messages.ts'
+import { logErr } from '../tg/auth.ts'
 import { statusText, getUserStatusText, peerInfo } from '../tg/peers.ts'
 import type { PeerMeta } from '../tg/peers.ts'
 import { useSettingsStore } from '../store/settings.ts'
@@ -110,7 +111,7 @@ export default function Chat() {
       .then((m) => {
         if (alive) setPeerMeta(m)
       })
-      .catch(console.error)
+      .catch(logErr)
     return () => {
       alive = false
     }
@@ -134,7 +135,7 @@ export default function Chat() {
     const cs = useChatStore.getState()
     // cached feed restored by open() → pull only the newer tail; detached → rebuild
     void (cs.messages.length && !cs.detached ? loadTail(peerId) : loadInitial(peerId))
-      .catch(console.error)
+      .catch(logErr)
       .finally(() => setFeedLoaded(true))
     return () => {
       // remember where the feed was left + flush the composer draft on the way out
@@ -158,7 +159,7 @@ export default function Chat() {
       .then((t) => {
         if (alive) setUserStatus(t)
       })
-      .catch(console.error)
+      .catch(logErr)
     const onStatus = (u: UserStatusUpdate) => {
       if (u.userId === Number(peerId)) setUserStatus(statusText(u.status, u.lastOnline))
     }
@@ -200,7 +201,11 @@ export default function Chat() {
     else if (document.activeElement instanceof HTMLButtonElement) document.activeElement.blur()
     if (rowFocused >= 0) {
       lastRow.current = rowFocused
-      listRef.current?.querySelector('.msg-focused')?.scrollIntoView({ block: 'nearest' })
+      const el = listRef.current?.querySelector<HTMLElement>('.msg-focused')
+      // a day boundary sits right above its first bubble — show it for context
+      const sep = el?.previousElementSibling
+      if (sep?.classList.contains('date-sep')) sep.scrollIntoView({ block: 'nearest' })
+      else el?.scrollIntoView({ block: 'nearest' })
     }
   }, [clamped, n, rowFocused])
 
@@ -251,7 +256,7 @@ export default function Chat() {
     setTopics([])
     if (!location.hash.includes('#topics')) navFromMenu('#topics')
     void getTopics(peerId).then(setTopics).catch((e) => {
-      console.error(e)
+      logErr(e)
       closeTopics()
     })
   }
@@ -266,7 +271,7 @@ export default function Chat() {
     closeTopics()
     setFeedLoaded(false)
     void loadInitial(peerId)
-      .catch(console.error)
+      .catch(logErr)
       .finally(() => setFeedLoaded(true))
   }
 
@@ -301,7 +306,7 @@ export default function Chat() {
         setSearchMode('results')
         if (searchRef.current) searchRef.current.value = ''
       })
-      .catch(console.error)
+      .catch(logErr)
   }
 
   /** focus the message if loaded, otherwise pull the surrounding history page */
@@ -319,7 +324,7 @@ export default function Chat() {
             setFocused(found)
           }
         })
-        .catch(console.error)
+        .catch(logErr)
   }
 
   const openFocused = () => {
@@ -395,9 +400,26 @@ export default function Chat() {
         else if (e.key === 'Enter') pickTopic(topicFocus === 0 ? null : topics[topicFocus - 1])
         return
       }
+      // a bubble taller than the viewport gets scrolled through before focus
+      // moves on — otherwise its middle is unreachable by any key
+      const spill = (dir: 1 | -1) => {
+        const rowEl =
+          rowFocused >= 0
+            ? listRef.current?.querySelector<HTMLElement>('.msg-focused')
+            : null
+        const listEl = listRef.current
+        if (!rowEl || !listEl) return false
+        const over =
+          dir === 1
+            ? rowEl.getBoundingClientRect().bottom - listEl.getBoundingClientRect().bottom
+            : listEl.getBoundingClientRect().top - rowEl.getBoundingClientRect().top
+        if (over > 2) listEl.scrollBy({ top: dir * Math.min(48, over) })
+        return over > 2
+      }
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault()
+          if (spill(1)) break
           if (clamped === n - 1) {
             // last bubble → composer field; read-only chats drop straight to the bar
             if (readOnly) setFocused(n + 1)
@@ -409,36 +431,32 @@ export default function Chat() {
           break
         case 'ArrowUp':
           e.preventDefault()
+          if (rowFocused >= 0 && spill(-1)) break
           if (clamped >= n) {
             // n === 0: no row to return to — leave the zone on the bar; the input keeps DOM focus
             if (!readOnly) composerRef.current?.focus()
             if (n > 0) setFocused(n - 1)
           } else if (clamped === 0) {
             // top bubble → page older history; the [n] effect keeps focus on the same message
-            void loadOlder(peerId).catch(console.error)
+            void loadOlder(peerId).catch(logErr)
           } else setFocused(clamped - 1)
           break
         case 'ArrowLeft':
+        case 'ArrowRight':
           if (rowFocused >= 0) {
             e.preventDefault()
             // ←/→ on a bubble = previous/next chat in dialog order
             const ds = useDialogsStore.getState().dialogs
             const i = ds.findIndex((d) => d.id === peerId)
-            if (i > 0) navigate(`/chat/${ds[i - 1].id}`, { replace: true })
+            const j = i + (e.key === 'ArrowRight' ? 1 : -1)
+            if (j >= 0 && j < ds.length) navigate(`/chat/${ds[j].id}`, { replace: true })
           } else if (clamped >= n) {
             e.preventDefault()
-            setFocused(Math.max(n, clamped - 1))
-          }
-          break
-        case 'ArrowRight':
-          if (rowFocused >= 0) {
-            e.preventDefault()
-            const ds = useDialogsStore.getState().dialogs
-            const i = ds.findIndex((d) => d.id === peerId)
-            if (i >= 0 && i + 1 < ds.length) navigate(`/chat/${ds[i + 1].id}`, { replace: true })
-          } else if (clamped >= n) {
-            e.preventDefault()
-            setFocused(Math.min(n + SK_COUNT - 1, clamped + 1))
+            setFocused(
+              e.key === 'ArrowRight'
+                ? Math.min(n + SK_COUNT - 1, clamped + 1)
+                : Math.max(n, clamped - 1),
+            )
           }
           break
         case '#':
@@ -447,7 +465,7 @@ export default function Chat() {
           if (useChatStore.getState().detached) {
             void loadInitial(peerId)
               .then(() => setFocused(useChatStore.getState().messages.length - 1))
-              .catch(console.error)
+              .catch(logErr)
           } else setFocused(n - 1)
           break
         case 'Enter':
@@ -463,7 +481,7 @@ export default function Chat() {
     const compose = useChatStore.getState().compose
     useChatStore.getState().setCompose(null)
     if (compose?.mode === 'edit') {
-      void editMessageText(peerId, compose.id, text).catch(console.error)
+      void editMessageText(peerId, compose.id, text).catch(logErr)
       return
     }
     const opts = compose ? { replyTo: { id: compose.id, text: compose.text } } : undefined
@@ -471,8 +489,8 @@ export default function Chat() {
     if (useChatStore.getState().detached) {
       void loadInitial(peerId)
         .then(() => sendMessage(peerId, text, opts))
-        .catch(console.error)
-    } else void sendMessage(peerId, text, opts).catch(console.error)
+        .catch(logErr)
+    } else void sendMessage(peerId, text, opts).catch(logErr)
   }
 
   const fm = messages[lastRow.current]
@@ -504,7 +522,7 @@ export default function Chat() {
   }
   const deleteFocused = () => {
     setDelOpen(false)
-    if (fm) void deleteMessage(peerId, fm.id).catch(console.error)
+    if (fm) void deleteMessage(peerId, fm.id).catch(logErr)
   }
   const showPinned = () => {
     const id = Number(peerId)
@@ -520,7 +538,7 @@ export default function Chat() {
             )
           : setPinned({ id: 0, text: 'Нет закреплённых' }),
       )
-      .catch(console.error)
+      .catch(logErr)
   }
   const muted = useSettingsStore((s) => s.muted.includes(peerId))
   const toggleMuted = useSettingsStore((s) => s.toggleMuted)

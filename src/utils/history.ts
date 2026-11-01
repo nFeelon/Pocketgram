@@ -13,7 +13,10 @@ export function useCleanHash(keep?: string) {
   const navigate = useNavigate()
   useEffect(() => {
     if (OVERLAY.test(location.hash) && !(keep && location.hash.endsWith(keep))) {
-      navigate(location.pathname + location.search, { replace: true })
+      // strip only the overlay suffix — under HashRouter the route lives in the
+      // hash itself, and navigating to pathname('/') would dump the user to the list
+      const clean = location.hash.replace(OVERLAY, '').replace(/^#/, '') || '/'
+      navigate(clean, { replace: true })
     }
   }, [keep, navigate])
 }

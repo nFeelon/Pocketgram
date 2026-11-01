@@ -28,8 +28,12 @@ interface DialogsState {
   filter: string
   setFilter: (q: string) => void
   setDialogs: (d: DialogEntry[]) => void
+  /** insert or replace a row and re-sort — used for peers the first page never returned */
+  upsert: (entry: DialogEntry) => void
   bump: (id: string, preview: string, time: number, incUnread: boolean, outId?: number) => void
   markRead: (id: string) => void
+  /** authoritative unread from an inbox-read update (read on another device) */
+  setUnread: (id: string, unread: number) => void
   setReadOutbox: (id: string, maxReadId: number) => void
   setDraft: (id: string, draft: string | undefined) => void
   /** refresh the row's preview without touching time/order (edits of the latest message) */
@@ -39,31 +43,34 @@ interface DialogsState {
 const byPinnedThenTime = (a: DialogEntry, b: DialogEntry) =>
   Number(b.pinned) - Number(a.pinned) || b.time - a.time
 
-export const useDialogsStore = create<DialogsState>((set) => ({
-  dialogs: [],
-  filter: '',
-  setFilter: (filter) => set({ filter }),
-  setDialogs: (dialogs) => set({ dialogs: [...dialogs].sort(byPinnedThenTime) }),
-  bump: (id, preview, time, incUnread, outId) =>
-    set((s) => ({
-      dialogs: s.dialogs
-        .map((d) =>
-          d.id === id
-            ? { ...d, preview, time, outId, unread: incUnread ? d.unread + 1 : d.unread }
-            : d,
-        )
-        .sort(byPinnedThenTime),
-    })),
-  markRead: (id) =>
-    set((s) => ({ dialogs: s.dialogs.map((d) => (d.id === id ? { ...d, unread: 0 } : d)) })),
-  setReadOutbox: (id, maxReadId) =>
-    set((s) => ({
-      dialogs: s.dialogs.map((d) =>
-        d.id === id && maxReadId > d.readOutbox ? { ...d, readOutbox: maxReadId } : d,
-      ),
-    })),
-  setDraft: (id, draft) =>
-    set((s) => ({ dialogs: s.dialogs.map((d) => (d.id === id ? { ...d, draft } : d)) })),
-  setPreview: (id, preview) =>
-    set((s) => ({ dialogs: s.dialogs.map((d) => (d.id === id ? { ...d, preview } : d)) })),
-}))
+export const useDialogsStore = create<DialogsState>((set) => {
+  // row-patching shared by the id-scoped setters below
+  const patch = (id: string, f: (d: DialogEntry) => DialogEntry) =>
+    set((s) => ({ dialogs: s.dialogs.map((d) => (d.id === id ? f(d) : d)) }))
+  return {
+    dialogs: [],
+    filter: '',
+    setFilter: (filter) => set({ filter }),
+    setDialogs: (dialogs) => set({ dialogs: [...dialogs].sort(byPinnedThenTime) }),
+    upsert: (entry) =>
+      set((s) => ({
+        dialogs: [...s.dialogs.filter((d) => d.id !== entry.id), entry].sort(byPinnedThenTime),
+      })),
+    bump: (id, preview, time, incUnread, outId) =>
+      set((s) => ({
+        dialogs: s.dialogs
+          .map((d) =>
+            d.id === id
+              ? { ...d, preview, time, outId, unread: incUnread ? d.unread + 1 : d.unread }
+              : d,
+          )
+          .sort(byPinnedThenTime),
+      })),
+    markRead: (id) => patch(id, (d) => ({ ...d, unread: 0 })),
+    setUnread: (id, unread) => patch(id, (d) => ({ ...d, unread })),
+    setReadOutbox: (id, maxReadId) =>
+      patch(id, (d) => (maxReadId > d.readOutbox ? { ...d, readOutbox: maxReadId } : d)),
+    setDraft: (id, draft) => patch(id, (d) => ({ ...d, draft })),
+    setPreview: (id, preview) => patch(id, (d) => ({ ...d, preview })),
+  }
+})

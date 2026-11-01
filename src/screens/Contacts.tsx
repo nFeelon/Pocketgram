@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router'
 import SoftKeyBar from '../components/SoftKeyBar.tsx'
 import DialogRow from '../components/DialogRow.tsx'
 import { tg } from '../tg/client.ts'
+import { logErr } from '../tg/auth.ts'
 import { useCleanHash } from '../utils/history.ts'
 import SearchIcon from '../assets/icons/search.svg?react'
 import '../components/DialogRow.css'
@@ -45,7 +46,7 @@ export default function Contacts() {
         setStatus('idle')
       },
       (e) => {
-        console.error(e)
+        logErr(e)
         setStatus('error')
       },
     )

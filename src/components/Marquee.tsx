@@ -11,6 +11,9 @@ interface Props {
 /** Feature-phone marquee: ping-pong scroll of overflowing text. Distance is
  *  measured per element; animation runs only when the text actually overflows
  *  (and, with whenFocused, only while the row is focused). */
+// px per second — slow enough to read on a 120px screen
+const SPEED = 18
+
 export default function Marquee({ text, whenFocused }: Props) {
   const ref = useRef<HTMLSpanElement>(null)
   const [overflow, setOverflow] = useState(0)
@@ -27,7 +30,11 @@ export default function Marquee({ text, whenFocused }: Props) {
     <span
       ref={ref}
       className={`mq${whenFocused ? ' mq-wf' : ''}${overflow ? ' has-overflow' : ''}`}
-      style={{ ['--mx' as string]: `${overflow}px` }}
+      style={{
+        ['--mx' as string]: `${overflow}px`,
+        // uniform speed: duration scales with the distance, ~1.5s settle before moving
+        ['--md' as string]: `${overflow / SPEED + 1.5}s`,
+      }}
     >
       <span className="mq-inner">{text}</span>
     </span>

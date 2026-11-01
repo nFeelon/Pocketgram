@@ -5,7 +5,13 @@ import { useChatStore } from '../store/chat.ts'
 import type { ChatMessage } from '../store/chat.ts'
 import { useDialogsStore } from '../store/dialogs.ts'
 import { notifyIncoming } from './notify.ts'
+import { logErr } from './auth.ts'
 import type { Message } from '@mtcute/web'
+
+const tsOf = (m: { date: Date }) => Math.floor(m.date.getTime() / 1000)
+
+// unmarked (non-channel) peer ids are positive users/chats; mtcute marks channels as -1e12 - id
+const UNMARKED_PEER_MIN = -1e12
 
 const LABEL: Partial<Record<MediaKind, string>> = {
   photo: '[Фото]',
@@ -20,6 +26,14 @@ const LABEL: Partial<Record<MediaKind, string>> = {
 export function mediaLabel(kind: MediaKind): string {
   return LABEL[kind] ?? ''
 }
+
+// search pages carry a bare message id as next — box it to fit the shared nextOffset shape
+const nextOffsetOf = (page: { next?: unknown }, threadId: number | null) =>
+  page.next == null
+    ? null
+    : threadId
+      ? { id: page.next as number, date: 0 }
+      : (page.next as { id: number; date: number })
 
 interface PollLike {
   question?: string
@@ -63,7 +77,7 @@ export function mapMessage(m: Message): ChatMessage {
     id: m.id,
     out: m.isOutgoing,
     text: m.isService ? messagePreview(m) : m.text || (poll ? pollText(poll) : ''),
-    time: Math.floor(m.date.getTime() / 1000),
+    time: tsOf(m),
     mediaKind: kind,
     // tgs/webm stickers can't play inline — the [Стикер] placeholder stands in
     media: kind === 'sticker' && media?.sourceType !== 'static' ? undefined : (media ?? undefined),
@@ -76,6 +90,12 @@ export function mapMessage(m: Message): ChatMessage {
     edited: !!m.editDate && !m.hideEditMark,
     replyTo: reply ? { id: reply.id, text: reply.quoteText } : undefined,
     isGif: media?.isAnimation,
+    reacts: (m.reactions?.reactions ?? []).map((r) => ({
+      // custom emoji arrive as a document id, not a glyph — show a placeholder
+      e: typeof r.emoji === 'string' ? r.emoji : '☺',
+      n: r.count,
+      mine: r.order != null,
+    })),
   }
 }
 
@@ -87,14 +107,7 @@ export async function loadInitial(peerId: string) {
     : await tg.getHistory(Number(peerId), { limit: 30 })
   // user switched chats while the page was in flight — drop it
   if (useChatStore.getState().peerId !== peerId) return
-  // search offset is a bare message id — box it to fit the shared nextOffset shape
-  const next =
-    page.next == null
-      ? null
-      : threadId
-        ? { id: page.next as number, date: 0 }
-        : (page.next as { id: number; date: number })
-  useChatStore.getState().setMessages(page.map(mapMessage).reverse(), next)
+  useChatStore.getState().setMessages(page.map(mapMessage).reverse(), nextOffsetOf(page, threadId))
   useChatStore.setState({ detached: false })
   void markRead(peerId)
 }
@@ -146,13 +159,7 @@ export async function loadOlder(peerId: string): Promise<number> {
     if (useChatStore.getState().peerId !== peerId) return 0
     const mapped = page.map(mapMessage).reverse()
     useChatStore.getState().prepend(mapped)
-    const next =
-      page.next == null
-        ? null
-        : threadId
-          ? { id: page.next as number, date: 0 }
-          : (page.next as { id: number; date: number })
-    useChatStore.setState({ nextOffset: next })
+    useChatStore.setState({ nextOffset: nextOffsetOf(page, threadId) })
     return mapped.length
   } finally {
     useChatStore.getState().setLoadingMore(false)
@@ -180,7 +187,7 @@ export async function sendMessage(
   } catch (e) {
     // removing the bubble is the visible failure signal
     remove(tempId)
-    console.error(e)
+    logErr(e)
   }
 }
 
@@ -206,12 +213,14 @@ export async function forwardMessage(toChatId: string, fromChatId: string, messa
 export async function saveDraftFor(peerId: string, text: string) {
   const value = text || undefined
   useDialogsStore.getState().setDraft(peerId, value)
-  await tg.saveDraft(Number(peerId), value ? { message: value } : null).catch(console.error)
+  await tg.saveDraft(Number(peerId), value ? { message: value } : null).catch(logErr)
 }
 
 export async function markRead(peerId: string) {
+  // readHistory isn't thread-scoped — a topic feed must not burn the whole group's unread
+  if (useChatStore.getState().threadId != null) return
   useDialogsStore.getState().markRead(peerId)
-  await tg.readHistory(Number(peerId)).catch(console.error)
+  await tg.readHistory(Number(peerId)).catch(logErr)
 }
 
 export interface Topic {
@@ -243,17 +252,25 @@ export function initUpdates() {
     // detached feeds (search/reply jump) have a gap — appending would corrupt order
     if (isOpen && !useChatStore.getState().detached && threadOk) {
       useChatStore.getState().append(mapMessage(m))
-      if (!m.isOutgoing) void tg.readHistory(m.chat.id, { maxId: m.id }).catch(console.error)
+      if (!m.isOutgoing && useChatStore.getState().threadId == null)
+        void tg.readHistory(m.chat.id, { maxId: m.id }).catch(logErr)
     }
     useDialogsStore
       .getState()
       .bump(
         id,
         messagePreview(m),
-        Math.floor(m.date.getTime() / 1000),
+        tsOf(m),
         !m.isOutgoing && !isOpen,
         m.isOutgoing ? m.id : undefined,
       )
+    // bump only touches existing rows — a peer beyond the first page still needs one
+    // (dynamic import keeps dialogs.ts ↔ messages.ts acyclic at module load)
+    if (!useDialogsStore.getState().dialogs.some((x) => x.id === id)) {
+      void import('./dialogs.ts')
+        .then((m2) => m2.loadDialog(id))
+        .catch(logErr)
+    }
     if (!m.isOutgoing && !isOpen) notifyIncoming(id)
   })
   tg.onEditMessage.add((m) => {
@@ -261,26 +278,42 @@ export function initUpdates() {
     if (useChatStore.getState().peerId === id) useChatStore.getState().replace(m.id, mapMessage(m))
     // only worth touching the row when the edited message is the dialog's latest
     const d = useDialogsStore.getState().dialogs.find((x) => x.id === id)
-    if (d && Math.floor(m.date.getTime() / 1000) >= d.time) {
+    if (d && tsOf(m) >= d.time) {
       useDialogsStore.getState().setPreview(id, messagePreview(m))
     }
   })
   tg.onDeleteMessage.add((u) => {
-    const peerId = useChatStore.getState().peerId
+    const atPeer = useChatStore.getState().peerId
     // channelId is already marked (toggleChannelIdMark); null means a user/chat update
     const applies =
-      peerId != null &&
-      (u.channelId == null ? Number(peerId) > -1e12 : peerId === String(u.channelId))
-    if (applies) {
+      atPeer != null &&
+      (u.channelId == null ? Number(atPeer) > UNMARKED_PEER_MIN : atPeer === String(u.channelId))
+    const dropIds = (ids: number[]) => {
       const tail = useChatStore.getState().messages.at(-1)
-      u.messageIds.forEach((id) => useChatStore.getState().remove(id))
+      ids.forEach((id) => useChatStore.getState().remove(id))
       // the deleted message was the feed tail — the dialog row would keep lying
       // (preview + ✓ outId) until the next event; sync it to the new tail now
-      if (tail && u.messageIds.includes(tail.id)) {
+      if (tail && ids.includes(tail.id)) {
         const m = useChatStore.getState().messages.at(-1)
         useDialogsStore
           .getState()
-          .bump(peerId, m ? m.text || mediaLabel(m.mediaKind) : '', m?.time ?? 0, false, m?.out ? m.id : undefined)
+          .bump(atPeer!, m ? m.text || mediaLabel(m.mediaKind) : '', m?.time ?? 0, false, m?.out ? m.id : undefined)
+      }
+    }
+    if (applies) {
+      if (u.channelId != null) {
+        dropIds(u.messageIds)
+      } else {
+        // non-channel deletes carry no peer — message ids are per-chat and overlap
+        // everywhere, so remove only the ids that are actually gone in THIS peer
+        void tg
+          .getMessages(Number(atPeer), u.messageIds)
+          .then((found) => {
+            if (useChatStore.getState().peerId !== atPeer) return
+            const got = new Set(found.filter((m) => m != null).map((m) => m.id))
+            dropIds(u.messageIds.filter((id) => !got.has(id)))
+          })
+          .catch(logErr)
       }
     }
     // a closed dialog can only be pinned down by its outgoing last id —
@@ -297,16 +330,20 @@ export function initUpdates() {
               .bump(
                 dialogId,
                 messagePreview(m),
-                m ? Math.floor(m.date.getTime() / 1000) : 0,
+                m ? tsOf(m) : 0,
                 false,
                 m?.isOutgoing ? m.id : undefined,
               ),
           )
-          .catch(console.error)
+          .catch(logErr)
       }
     }
   })
   tg.onHistoryRead.add((u) => {
     if (u.isOutbox) useDialogsStore.getState().setReadOutbox(String(u.chatId), u.maxReadId)
+    // the user read the chat on another device — sync our badge to the server's count.
+    // discussion/monoforum updates carry a thread-scoped count, not the chat's badge
+    else if (!u.isDiscussion && !u.isMonoForum)
+      useDialogsStore.getState().setUnread(String(u.chatId), u.unreadCount)
   })
 }

@@ -5,6 +5,7 @@ import SoftKeyBar from '../components/SoftKeyBar.tsx'
 import { useSettingsStore } from '../store/settings.ts'
 import { useConnStore } from '../store/conn.ts'
 import { cacheStats, clearMediaCache } from '../tg/cache.ts'
+import { logErr } from '../tg/auth.ts'
 import { formatSize } from '../utils/format.ts'
 import { useCleanHash } from '../utils/history.ts'
 import './About.css'
@@ -67,7 +68,7 @@ export default function Settings() {
           onClick={() =>
             void clearMediaCache()
               .then(() => setCacheBytes(0))
-              .catch(console.error)
+              .catch(logErr)
           }
         >
           Кэш медиа: {cacheBytes === null ? '…' : cacheBytes < 0 ? 'н/д' : formatSize(cacheBytes)} —

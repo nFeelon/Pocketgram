@@ -160,6 +160,16 @@ const Bubble = memo(function Bubble({
           </span>
         )}
       </span>
+      {!!msg.reacts?.length && (
+        <span className="reacts">
+          {msg.reacts.map((r, i) => (
+            <span key={i} className={`react${r.mine ? ' mine' : ''}`}>
+              {r.e}
+              {r.n > 1 ? r.n : ''}
+            </span>
+          ))}
+        </span>
+      )}
     </div>
   )
 })

@@ -19,6 +19,15 @@ export function formatDay(ts: number): string {
   return `${dd}.${mm}.${d.getFullYear()}`
 }
 
+/** dialog list stamp: today → "12:41", anything older → "05.03" */
+export function formatListTime(ts: number): string {
+  const d = new Date(ts * 1000)
+  if (d.toDateString() === new Date().toDateString()) return formatTime(ts)
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  return `${dd}.${mm}`
+}
+
 /** "1:23" for voice/video durations */
 export function formatDuration(sec: number): string {
   const m = Math.floor(sec / 60)

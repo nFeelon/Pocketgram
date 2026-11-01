@@ -3,6 +3,7 @@ import { mediaBlob, mediaChunks, mediaKey, MAX_PLAYABLE_BYTES } from '../tg/medi
 import { getCachedBlob, putCachedBlob } from '../tg/cache.ts'
 import { useSettingsStore } from '../store/settings.ts'
 import { formatSize } from '../utils/format.ts'
+import { logErr } from '../tg/auth.ts'
 import './MediaViewer.css'
 
 interface Props {
@@ -63,9 +64,12 @@ export default function MediaViewer({ media, kind, mimeType, size, onClose }: Pr
       const el = mediaRef.current
       // el.ended fires on the truncated blob's tail — treat it as "still playing"
       pendingSeek.current = el ? { t: el.currentTime, play: !el.paused || el.ended } : null
-      if (created) URL.revokeObjectURL(created)
+      const old = created
       urlBytes = bytes || blob.size
-      setUrl((created = URL.createObjectURL(blob)))
+      created = URL.createObjectURL(blob)
+      setUrl(created)
+      // defer the revoke until React commits the new src — the element still plays `old` this tick
+      if (old) setTimeout(() => URL.revokeObjectURL(old), 0)
     }
 
     /** rebuild the blob URL with everything downloaded so far (playback keeps position) */
@@ -105,7 +109,7 @@ export default function MediaViewer({ media, kind, mimeType, size, onClose }: Pr
       swapIfGrown()
       setPct(100)
     })().catch((e) => {
-      console.error(e)
+      logErr(e)
       if (alive) setErr('Не удалось загрузить медиа')
     })
 
@@ -185,10 +189,10 @@ export default function MediaViewer({ media, kind, mimeType, size, onClose }: Pr
       void e.currentTarget.play().catch((er: Error) => setPlayErr(er.name)),
   }
 
-  // native <video controls> paint a giant gradient over half the tiny screen and
-  // eat the center key themselves — video gets our keys only; audio keeps its bar.
-  // fsVideo = escape hatch back to the system fullscreen player (+native controls).
-  const videoHandlers = fsVideo ? { ...mediaHandlers, controls: true } : mediaHandlers
+  // native <video controls> paint a giant gradient over half the tiny screen AND
+  // eat the center key (play+pause in one tick = never starts). The system
+  // player brings its own UI when it takes over — the element needs no controls
+  // in either mode. Audio keeps its thin progress bar.
   const audioHandlers = { ...mediaHandlers, controls: true }
 
   return (
@@ -208,7 +212,7 @@ export default function MediaViewer({ media, kind, mimeType, size, onClose }: Pr
       {url && isAudio && <audio {...audioHandlers} src={url} className="audio" />}
       {url && !isAudio && kind !== 'photo' && (
         <video
-          {...videoHandlers}
+          {...mediaHandlers}
           src={url}
           playsInline
           // Cloud Phone plays <video> fullscreen by default — opt out unless the

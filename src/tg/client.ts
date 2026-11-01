@@ -14,6 +14,8 @@ export const tg = new TelegramClient({
   apiHash,
   // IndexedDB-backed storage; encrypted by Cloud Phone with a device-side key
   storage: 'pocketgram',
+  // fetch updates missed while the widget was offline instead of drifting silently
+  updates: { catchUp: true },
 })
 
 tg.onConnectionState.add((state) => useConnStore.setState({ state }))

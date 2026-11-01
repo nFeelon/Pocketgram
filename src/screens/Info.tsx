@@ -5,6 +5,7 @@ import SoftKeyBar from '../components/SoftKeyBar.tsx'
 import Avatar from '../components/Avatar.tsx'
 import { tg } from '../tg/client.ts'
 import { statusText } from '../tg/peers.ts'
+import { logErr } from '../tg/auth.ts'
 import { useCleanHash } from '../utils/history.ts'
 import './About.css'
 
@@ -47,7 +48,7 @@ export default function Info() {
       if (alive) setProfile(p)
     }
     const fail = (e: unknown) => {
-      console.error(e)
+      logErr(e)
       if (alive) setLoadErr(true)
     }
     if (id > 0) {
@@ -101,7 +102,7 @@ export default function Info() {
           })),
         ),
       )
-      .catch(console.error)
+      .catch(logErr)
       .finally(() => setMembersLoading(false))
   }
 
