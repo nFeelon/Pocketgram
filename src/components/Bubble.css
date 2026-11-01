@@ -64,3 +64,9 @@
   padding: 8pt;
   justify-content: center;
 }
+
+.media.sticker {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}

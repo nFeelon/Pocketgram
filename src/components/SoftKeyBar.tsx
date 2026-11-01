@@ -1,5 +1,4 @@
 import { useEffect } from 'react'
-import type { ReactNode } from 'react'
 import MenuIcon from '../assets/icons/menu.svg?react'
 import BackIcon from '../assets/icons/back.svg?react'
 import SelectIcon from '../assets/icons/select.svg?react'
@@ -11,7 +10,6 @@ export type SoftKeyIcon = 'menu' | 'back' | 'select'
 export interface SoftKeyButton {
   text?: string
   icon?: SoftKeyIcon
-  component?: ReactNode
   title?: string
 }
 
@@ -31,6 +29,8 @@ interface Props {
 export default function SoftKeyBar({ buttons = {}, onSoftKeyClick = () => {} }: Props) {
   useEffect(() => {
     const handleEvent = (event: KeyboardEvent) => {
+      // typing in an input — let the field's own Enter/Esc handling work, don't fire soft keys
+      if ((event.target as HTMLElement)?.tagName === 'INPUT') return
       switch (event.key) {
         /* Left Soft Key (LSK) */
         case 'Escape': return onSoftKeyClick('start')
@@ -49,12 +49,8 @@ export default function SoftKeyBar({ buttons = {}, onSoftKeyClick = () => {} }: 
     }
     return (
       <button key={position} onClick={() => onSoftKeyClick(position)} title={cfg.title}>
-        {cfg.component ?? (
-          <>
-            {cfg.icon && getIconFromName(cfg.icon)}
-            {cfg.text}
-          </>
-        )}
+        {cfg.icon && getIconFromName(cfg.icon)}
+        {cfg.text}
       </button>
     )
   }

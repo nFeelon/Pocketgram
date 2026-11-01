@@ -1,15 +1,38 @@
+import { useEffect, useState } from 'react'
 import type { ChatMessage } from '../store/chat.ts'
+import { mediaUrl, revokeMediaUrl } from '../tg/media.ts'
 import { formatTime, formatDuration, formatSize } from '../utils/format.ts'
 import PlayIcon from '../assets/icons/play.svg?react'
 import './Bubble.css'
 
+/** webp stickers render inline; tgs/video stickers fall back to the placeholder */
+function StickerThumb({ media }: { media: Parameters<typeof mediaUrl>[0] }) {
+  const [url, setUrl] = useState<string | null>(null)
+  useEffect(() => {
+    let alive = true
+    let created: string | undefined
+    void mediaUrl(media, 'image/webp').then((u) => {
+      if (alive) setUrl((created = u))
+      else revokeMediaUrl(u)
+    })
+    return () => {
+      alive = false
+      if (created) revokeMediaUrl(created)
+    }
+  }, [media])
+  return url
+    ? <img className="media sticker" src={url} alt="Стикер" draggable={false} />
+    : <div className="media">[Стикер]</div>
+}
+
 function Waveform({ bars }: { bars: number[] }) {
   const w = bars.length * 3
+  const max = Math.max(1, ...bars)
+  const h = (v: number) => Math.max(2, Math.round((v / max) * 14))
   return (
     <svg className="wave" width={w} height={14} viewBox={`0 0 ${w} 14`} aria-hidden>
       {bars.map((v, i) => (
-        <rect key={i} x={i * 3} y={14 - Math.max(2, Math.round((v / 31) * 14))} width={2} rx={1}
-          height={Math.max(2, Math.round((v / 31) * 14))} fill="currentColor" />
+        <rect key={i} x={i * 3} y={14 - h(v)} width={2} rx={1} height={h(v)} fill="currentColor" />
       ))}
     </svg>
   )
@@ -47,8 +70,9 @@ export default function Bubble({ msg }: { msg: ChatMessage }) {
       case 'audio':
         return <div className="media">[Аудио{msg.duration ? ` ${formatDuration(msg.duration)}` : ''}]</div>
       case 'sticker':
-        // webp renders as image; tgs/video stickers get a placeholder (v1)
-        return <div className="media">[Стикер]</div>
+        return msg.media
+          ? <StickerThumb media={msg.media as Parameters<typeof mediaUrl>[0]} />
+          : <div className="media">[Стикер]</div>
       case 'file':
         return <div className="media">[Файл{msg.size ? ` ${formatSize(msg.size)}` : ''}]</div>
       default:

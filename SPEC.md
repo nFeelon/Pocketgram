@@ -103,10 +103,10 @@ src/
 │   ├── Avatar.tsx(.css)     # круг с инициалом, дет. цвет по id; фото — бэклог
 │   └── Confirm.tsx(.css)    # alert()-замена
 ├── utils/
-│   ├── focus.ts             # FOCUSABLE_CSS_SELECTOR, autoFocus
+│   ├── focus.ts             # FOCUSABLE_CSS_SELECTOR, findFirstFocusable
 │   ├── format.ts            # время, длительность, размер, инициал
 │   └── features.ts          # navigator.hasFeature() с fallback
-└── assets/icons/*.svg       # menu, back, select, search, play, pin
+└── assets/icons/*.svg       # menu, back, select, play, pin
 ```
 
 ### Авторизация
@@ -142,12 +142,12 @@ src/
 
 ### Auth (`stage: phone|code|password`)
 - Хедер «Pocketgram»; метка поля, `<input>` (tel/text/password), подсказка «Enter — продолжить», ошибка красным.
-- Код приходит в Telegram на другую сессию или по SMS (`forceSms` — опционально в меню опций).
+- Код приходит в Telegram на другую сессию или по SMS (`forceSms` — бэклог, опция в меню Auth).
 
 ### ChatList (index-роут)
 - Хедер: `Pocketgram` + справа `4G`/онлайн. Поле «Поиск…» — локальный фильтр по имени.
 - Строки: аватар-круг 20px (инициал, цвет по id), имя 12pt bold, превью 10pt, время, бейдж unread, pin.
-- Клавиши: `↑↓` фокус по списку (wrap-around, repeat), `Enter`/CSK — открыть чат, `0-9` — T9-jump к первому совпадению (бэклог), LSK — OptionsMenu: *Обновить / О приложении / Выйти* (выход → Confirm → `auth.logOut` + очистка → Auth), RSK — выход из виджета (`window.close`).
+- Клавиши: `↑↓` фокус по списку (`↓` — wrap-around; `↑` на первой строке — в поле поиска), `Enter`/CSK — открыть чат, `0-9` — T9-jump к первому совпадению (бэклог), LSK — OptionsMenu: *Обновить / О приложении / Выйти* (выход → Confirm → `auth.logOut` + очистка → Auth), RSK — выход из виджета (`window.close`).
 
 ### Chat (`/chat/:peerId`)
 - Хедер: имя собеседника + статус («канал»/онлайн — бэклог).
@@ -172,7 +172,8 @@ src/
 
 ## 7. Деплой
 
-- **GitHub Pages**: `.github/workflows/pages.yml` (JamesIves/github-pages-deploy-action@v4 → `dist`). `vite.config`: `base:'./'`, HashRouter.
+- **GitHub Pages**: `.github/workflows/pages.yml` (JamesIves/github-pages-deploy-action@v4 → `dist`). `vite.config`: `base:'./'`, HashRouter. `VITE_TG_API_ID/HASH` — из GitHub Secrets в шаг сборки.
+- **CSP**: `<meta http-equiv="Content-Security-Policy">` инжектится только в прод-сборку (`vite.config.ts`): `script-src 'self' 'wasm-unsafe-eval'`, без eval и remote-скриптов; `connect-src` широкий — mtcute ходит по ротирующимся DC-эндпоинтам Telegram по wss. Dev-сервер без CSP (нужен HMR). Если на девайсе пустой экран — первым делом снять meta и перепроверить.
 - **⚠️ Приватность**: GitHub Pages для **приватного** репозитория требует платный план (Pro/Team). Варианты:
   1. Публичный репозиторий — api_hash в бандле всё равно публичен, код открытого клиента секретов не содержит. **Рекомендуется.**
   2. Cloudflare Pages / Vercel free — собирают из приватных репо, отдают публичный HTTPS-URL.

@@ -16,7 +16,8 @@ interface AuthState {
 let resolver: ((v: string) => void) | null = null
 
 export const useAuthStore = create<AuthState>((set) => ({
-  stage: 'phone',
+  // 'boot' — until tg.start resolves (existing session restores silently, no field flash)
+  stage: 'boot',
   error: null,
   selfName: null,
   submit: (value) => {

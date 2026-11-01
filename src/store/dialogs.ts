@@ -20,16 +20,19 @@ interface DialogsState {
   bump: (id: string, preview: string, time: number) => void
 }
 
+const byPinnedThenTime = (a: DialogEntry, b: DialogEntry) =>
+  Number(b.pinned) - Number(a.pinned) || b.time - a.time
+
 export const useDialogsStore = create<DialogsState>((set) => ({
   // TODO: populate from tg.getDialogs() + onNewMessage
   dialogs: [],
   filter: '',
   setFilter: (filter) => set({ filter }),
-  setDialogs: (dialogs) => set({ dialogs }),
+  setDialogs: (dialogs) => set({ dialogs: [...dialogs].sort(byPinnedThenTime) }),
   bump: (id, preview, time) =>
     set((s) => ({
       dialogs: s.dialogs
         .map((d) => (d.id === id ? { ...d, preview, time, unread: d.unread + 1 } : d))
-        .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.time - a.time),
+        .sort(byPinnedThenTime),
     })),
 }))

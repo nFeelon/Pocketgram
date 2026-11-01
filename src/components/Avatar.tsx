@@ -9,9 +9,8 @@ function colorFor(id: string) {
   return PALETTE[Math.abs(h) % PALETTE.length]
 }
 
-export default function Avatar({ id, title, src }: { id: string; title: string; src?: string }) {
+export default function Avatar({ id, title }: { id: string; title: string }) {
   // TODO: load real profile photos via tg.downloadAsBuffer → blob URL, cache in IndexedDB
-  if (src) return <img className="avatar" src={src} alt="" draggable={false} />
   return (
     <span className="avatar" style={{ background: colorFor(id) }} aria-hidden>
       {initial(title)}

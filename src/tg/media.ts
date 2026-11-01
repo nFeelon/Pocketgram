@@ -22,10 +22,14 @@ export function mediaKind(media: MediaLike | null | undefined): MediaKind {
 
 const urls = new Set<string>()
 
-/** Download media bytes over MTProto and expose them as a blob: object URL */
-export async function mediaUrl(media: Parameters<typeof tg.downloadAsBuffer>[0]): Promise<string> {
+/** Download media bytes over MTProto and expose them as a blob: object URL.
+ *  Pass the media's mimeType — media elements may refuse to play a typeless blob. */
+export async function mediaUrl(
+  media: Parameters<typeof tg.downloadAsBuffer>[0],
+  mimeType = 'application/octet-stream',
+): Promise<string> {
   const buf = await tg.downloadAsBuffer(media)
-  const blob = new Blob([buf as BlobPart])
+  const blob = new Blob([buf as BlobPart], { type: mimeType })
   const url = URL.createObjectURL(blob)
   urls.add(url)
   return url

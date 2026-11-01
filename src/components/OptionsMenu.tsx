@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ReactElement } from 'react'
+import type { ReactElement, ReactNode } from 'react'
 import React from 'react'
 import { useNavigate } from 'react-router'
-import { autoFocusFirstFocusable } from '../utils/focus.ts'
 import './OptionsMenu.css'
 
 interface Props {
   visible: boolean
-  children: ReactElement[]
+  children: ReactNode // falsy children (e.g. {flag && <button>}) are dropped
   onMenuItemSelected?: (child: ReactElement, index: number) => void
   onClose?: () => void
 }
@@ -19,10 +18,11 @@ export default function OptionsMenu({ visible, children, onMenuItemSelected = ()
   const menuRef = useRef<HTMLElement>(null)
   const [focusedIndex, setFocusedIndex] = useState(0)
   const navigate = useNavigate()
+  const menuItems = React.Children.toArray(children) as ReactElement<React.HTMLAttributes<HTMLElement>>[]
 
   // Push a history entry when the menu opens → RSK (popstate) closes it
   useEffect(() => {
-    if (visible) navigate('#menu')
+    if (visible && !location.hash.includes('#menu')) navigate('#menu')
   }, [visible, navigate])
 
   useEffect(() => {
@@ -51,7 +51,7 @@ export default function OptionsMenu({ visible, children, onMenuItemSelected = ()
         case 'Enter':
           e.preventDefault()
           items[focusedIndex]?.click()
-          onMenuItemSelected(children[focusedIndex], focusedIndex)
+          onMenuItemSelected(menuItems[focusedIndex], focusedIndex)
           break
       }
     }
@@ -64,17 +64,17 @@ export default function OptionsMenu({ visible, children, onMenuItemSelected = ()
     items[focusedIndex]?.focus()
   }, [focusedIndex])
 
-  useEffect(() => autoFocusFirstFocusable(menuRef.current), [])
-
   if (!visible) return null
 
   return (
     <menu ref={menuRef} role="menu" className="options-menu">
-      {React.Children.map(children, (child, index) =>
-        React.cloneElement(child as ReactElement<React.HTMLAttributes<HTMLElement>>, {
+      {menuItems.map((child, index) =>
+        React.cloneElement(child, {
           role: 'menuitem',
           tabIndex: index,
-          className: index === focusedIndex ? 'focused' : '',
+          className: [child.props.className, index === focusedIndex ? 'focused' : '']
+            .filter(Boolean)
+            .join(' '),
         }),
       )}
     </menu>

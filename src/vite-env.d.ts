@@ -21,8 +21,3 @@ interface Navigator {
   volumeManager?: VolumeManager
   hasFeature?(name: string): Promise<boolean>
 }
-
-interface WindowEventMap {
-  /** Cloud Phone right-soft-key "back" event (preventDefault to override) */
-  back: Event
-}

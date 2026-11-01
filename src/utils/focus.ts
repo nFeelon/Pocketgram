@@ -8,5 +8,3 @@ export function findFirstFocusable(container: HTMLElement | null) {
 export const autoFocusFirstFocusable = (element: HTMLElement | null) => {
   findFirstFocusable(element)?.focus()
 }
-
-export const autoFocus = (element: HTMLElement | null) => element?.focus()

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { signIn } from '../tg/auth.ts'
 import type { AuthField } from '../tg/auth.ts'
 import { useAuthStore, authReady, authError } from '../store/auth.ts'
@@ -17,19 +17,22 @@ export default function Auth() {
   const submit = useAuthStore((s) => s.submit)
   const ask = useAuthStore((s) => s._ask)
   const inputRef = useRef<HTMLInputElement>(null)
-  const [busy, setBusy] = useState(false)
 
   // Boot: restore session or run the interactive login flow exactly once
   useEffect(() => {
-    setBusy(true)
     signIn(ask)
       .then((self) => {
         useAuthStore.setState({ selfName: self.displayName })
         authReady()
       })
-      .catch((e: unknown) => authError(e instanceof Error ? e.message : String(e)))
-      .finally(() => setBusy(false))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      .catch((e: unknown) =>
+        authError(
+          (e instanceof Error ? e.message : String(e)).replace(
+            /FLOOD_WAIT_(\d+)/,
+            'Слишком часто — подождите $1 с',
+          ),
+        ),
+      )
   }, [])
 
   useEffect(() => inputRef.current?.focus(), [stage])
@@ -63,8 +66,13 @@ export default function Auth() {
             <p className="auth-hint">Enter — продолжить</p>
           </>
         )}
-        {stage === 'boot' || busy ? <p className="auth-hint">Подключение…</p> : null}
-        {stage === 'error' && <p className="auth-error">{error}</p>}
+        {stage === 'boot' && <p className="auth-hint">Подключение…</p>}
+        {error && <p className="auth-error">{error}</p>}
+        {stage === 'error' && (
+          <button autoFocus onClick={() => location.reload()}>
+            Повторить
+          </button>
+        )}
       </section>
     </div>
   )

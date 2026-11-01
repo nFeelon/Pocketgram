@@ -7,7 +7,7 @@ import App from './App.tsx'
 // HashRouter is needed for GitHub Pages (and RSK = history.back on Cloud Phone)
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <HashRouter basename="">
+    <HashRouter>
       <App />
     </HashRouter>
   </StrictMode>,

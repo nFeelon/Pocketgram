@@ -21,6 +21,9 @@ jobs:
       - name: "Build 🔧"
         run: |
           npm run build
+        env:
+          VITE_TG_API_ID: ${{ secrets.VITE_TG_API_ID }}
+          VITE_TG_API_HASH: ${{ secrets.VITE_TG_API_HASH }}
       - name: "Deploy 🚀"
         uses: JamesIves/github-pages-deploy-action@v4
         with:

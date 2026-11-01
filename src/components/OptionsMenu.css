@@ -32,6 +32,7 @@
 .options-menu > *:focus,
 .options-menu > *:active {
   background-color: #1971e6;
+  border-image: conic-gradient(#1971e6 0 0) fill 0 / / 0 100vw;
 }
 
 /* QVGA */
