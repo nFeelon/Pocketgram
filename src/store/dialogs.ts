@@ -13,6 +13,8 @@ export interface DialogEntry {
   pinned: boolean
   /** last outgoing message id read by the peer — drives the ✓✓ ticks */
   readOutbox: number
+  /** id of the last message when it's ours — the row draws ✓/✓✓ next to the preview */
+  outId?: number
   /** composer draft kept server-side */
   draft?: string
   /** supergroup with topics enabled — chat menu gets a «Темы» picker */
@@ -26,7 +28,7 @@ interface DialogsState {
   filter: string
   setFilter: (q: string) => void
   setDialogs: (d: DialogEntry[]) => void
-  bump: (id: string, preview: string, time: number, incUnread: boolean) => void
+  bump: (id: string, preview: string, time: number, incUnread: boolean, outId?: number) => void
   markRead: (id: string) => void
   setReadOutbox: (id: string, maxReadId: number) => void
   setDraft: (id: string, draft: string | undefined) => void
@@ -42,11 +44,13 @@ export const useDialogsStore = create<DialogsState>((set) => ({
   filter: '',
   setFilter: (filter) => set({ filter }),
   setDialogs: (dialogs) => set({ dialogs: [...dialogs].sort(byPinnedThenTime) }),
-  bump: (id, preview, time, incUnread) =>
+  bump: (id, preview, time, incUnread, outId) =>
     set((s) => ({
       dialogs: s.dialogs
         .map((d) =>
-          d.id === id ? { ...d, preview, time, unread: incUnread ? d.unread + 1 : d.unread } : d,
+          d.id === id
+            ? { ...d, preview, time, outId, unread: incUnread ? d.unread + 1 : d.unread }
+            : d,
         )
         .sort(byPinnedThenTime),
     })),

@@ -12,7 +12,7 @@ import type { ChatMessage } from '../store/chat.ts'
 import { useDialogsStore } from '../store/dialogs.ts'
 import { tg } from '../tg/client.ts'
 import type { UserStatusUpdate } from '@mtcute/web'
-import { mediaUrl, revokeMediaUrl, mediaKind } from '../tg/media.ts'
+import { mediaUrl, revokeMediaUrl, mediaKind, displayMediaOf } from '../tg/media.ts'
 import {
   loadInitial,
   loadTail,
@@ -325,7 +325,13 @@ export default function Chat() {
         m.mediaKind === 'audio')
     ) {
       // one player overlay for everything playable — native controls handle volume/pause
-      openViewer({ media: m.media as DownloadableMedia, kind: m.mediaKind, mimeType: m.mimeType, size: m.size })
+      openViewer({
+        // photos open at a screen-sized variant — the full original is only for download
+        media: m.mediaKind === 'photo' ? displayMediaOf(m.media as DownloadableMedia) : (m.media as DownloadableMedia),
+        kind: m.mediaKind,
+        mimeType: m.mimeType,
+        size: m.size,
+      })
     }
   }
 

@@ -174,7 +174,7 @@ export async function sendMessage(
       threadId: useChatStore.getState().threadId ?? undefined,
     })
     replace(tempId, mapMessage(sent))
-    useDialogsStore.getState().bump(peerId, text, time, false)
+    useDialogsStore.getState().bump(peerId, text, time, false, sent.id)
     // the server drops the draft once the message lands
     useDialogsStore.getState().setDraft(peerId, undefined)
   } catch (e) {
@@ -247,7 +247,13 @@ export function initUpdates() {
     }
     useDialogsStore
       .getState()
-      .bump(id, messagePreview(m), Math.floor(m.date.getTime() / 1000), !m.isOutgoing && !isOpen)
+      .bump(
+        id,
+        messagePreview(m),
+        Math.floor(m.date.getTime() / 1000),
+        !m.isOutgoing && !isOpen,
+        m.isOutgoing ? m.id : undefined,
+      )
     if (!m.isOutgoing && !isOpen) notifyIncoming(id)
   })
   tg.onEditMessage.add((m) => {

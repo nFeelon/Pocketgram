@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 interface SettingsState {
-  font: 8 | 9 | 10 | 11 | 12
+  font: 7 | 8 | 9 | 10 | 11 | 12
   theme: 'dark' | 'light'
   sound: boolean
   vibrate: boolean
@@ -14,7 +14,7 @@ interface SettingsState {
   toggleMuted: (id: string) => void
 }
 
-const FONTS = [8, 9, 10, 11, 12] as const
+const FONTS = [7, 8, 9, 10, 11, 12] as const
 
 export const useSettingsStore = create<SettingsState>()(
   persist(

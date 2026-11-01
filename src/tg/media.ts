@@ -32,16 +32,38 @@ export function thumbOf(media: unknown): Parameters<typeof tg.downloadAsBuffer>[
 const urls = new Set<string>()
 
 /** Download media bytes over MTProto as a Blob — goes through the IndexedDB
- *  cache by uniqueFileId, so re-opened media doesn't re-download. */
+ *  cache by uniqueFileId, so re-opened media doesn't re-download.
+ *  stallTimeout turns a hung download into an error the UI can show. */
 export async function mediaBlob(
   media: Parameters<typeof tg.downloadAsBuffer>[0],
   mimeType = 'application/octet-stream',
+  progressCallback?: (downloaded: number, total: number) => void,
 ): Promise<Blob> {
   const fetch = async () => {
-    const buf = await tg.downloadAsBuffer(media)
+    const buf = await tg.downloadAsBuffer(media, { progressCallback, stallTimeout: 20_000 })
     return new Blob([buf as BlobPart], { type: mimeType })
   }
   return cachedBlob((media as { uniqueFileId?: string }).uniqueFileId ?? null, fetch)
+}
+
+/** Viewer variant ≈2× the screen (spec): 'm' ≈320px for QQVGA, 'x' ≈800px for
+ *  QVGA — much faster than the full original. Non-photos pass through:
+ *  a video's getThumbnail is a jpeg, not the playable file. */
+export function displayMediaOf<T>(media: T): T {
+  const t = media as { getThumbnail?: (s: string) => T | null }
+  const want = typeof window !== 'undefined' && window.innerWidth > 128 ? 'x' : 'm'
+  return t.getThumbnail?.(want) ?? t.getThumbnail?.('m') ?? media
+}
+
+export const mediaKey = (media: unknown): string | null =>
+  (media as { uniqueFileId?: string }).uniqueFileId ?? null
+
+/** Ordered chunk stream over MTProto — feeds the progressive player (no MSE
+ *  needed): the prefix of a faststart MP4 already plays, the blob just grows. */
+export function mediaChunks(
+  media: Parameters<typeof tg.downloadAsIterable>[0],
+): AsyncIterableIterator<Uint8Array> {
+  return tg.downloadAsIterable(media, { partSize: 256, stallTimeout: 20_000 })
 }
 
 /** Download media bytes over MTProto and expose them as a blob: object URL.

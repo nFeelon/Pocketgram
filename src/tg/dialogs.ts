@@ -18,6 +18,7 @@ export async function loadDialogs(limit = 50) {
       unread: d.unreadCount,
       pinned: d.isPinned,
       readOutbox: d.lastReadOutgoing,
+      outId: m?.isOutgoing ? m.id : undefined,
       draft: d.draftMessage?.text,
       isForum: (d.peer as { isForum?: boolean }).isForum ?? false,
       photo: (d.peer as { photo?: { small?: Parameters<typeof tg.downloadAsBuffer>[0] } }).photo?.small,

@@ -36,13 +36,26 @@ function tx<R>(mode: IDBTransactionMode, run: (s: IDBObjectStore) => IDBRequest<
 
 const getEntry = (key: string) => tx<CacheEntry | undefined>('readonly', (s) => s.get(key))
 
+export async function getCachedBlob(key: string | null): Promise<Blob | undefined> {
+  if (!key) return undefined
+  // a wedged IDB (never settles) must not stall the download — race it out
+  const hit = await Promise.race([
+    getEntry(key),
+    new Promise<undefined>((r) => setTimeout(() => r(undefined), 1500)),
+  ]).catch(() => undefined)
+  return hit?.blob
+}
+
+export function putCachedBlob(key: string | null, blob: Blob): void {
+  if (key) void putEntry(key, blob).catch(console.error)
+}
+
 /** Read-through: cached blob by uniqueFileId, or fetch() → store → evict if over CAP */
 export async function cachedBlob(key: string | null, fetch: () => Promise<Blob>): Promise<Blob> {
-  if (!key) return fetch()
-  const hit = await getEntry(key).catch(() => undefined)
-  if (hit) return hit.blob
+  const hit = await getCachedBlob(key)
+  if (hit) return hit
   const blob = await fetch()
-  void putEntry(key, blob).catch(console.error)
+  putCachedBlob(key, blob)
   return blob
 }
 

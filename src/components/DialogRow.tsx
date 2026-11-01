@@ -18,6 +18,9 @@ export default function DialogRow({ dialog }: { dialog: DialogEntry }) {
         </div>
         <div className="dialog-bottom">
           <span className={`dialog-preview${dialog.draft ? ' draft' : ''}`}>
+            {!dialog.draft && dialog.outId != null && (
+              <span className="read-tick">{dialog.outId <= dialog.readOutbox ? '✓✓' : '✓'}</span>
+            )}
             {dialog.draft ? `Черновик: ${dialog.draft}` : dialog.preview}
           </span>
           {dialog.unread > 0 && <span className={`unread${muted ? ' muted' : ''}`}>{dialog.unread}</span>}
