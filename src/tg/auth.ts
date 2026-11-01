@@ -1,6 +1,5 @@
 import { tg } from './client.ts'
 import { useAuthStore } from '../store/auth.ts'
-import QRCode from 'qrcode'
 
 export type AuthField = 'phone' | 'code' | 'password'
 
@@ -41,12 +40,15 @@ export function signIn(
       code: () => ask('code'),
       password: () => ask('password'),
       // QR flow replaces phone+code entirely — the handler is re-called each time
-      // the login token rotates, so keep the rendered image fresh
+      // the login token rotates, so keep the rendered image fresh.
+      // qrcode is a separate chunk: it only loads when the user actually picks QR login
       qrCodeHandler: opts.qr
         ? (url) =>
-            void QRCode.toDataURL(url, { margin: 0, width: 96 }).then((qrImg) => {
-              if (gen === flowGen) useAuthStore.setState({ stage: 'qr', qrImg })
-            })
+            void import('qrcode').then((QRCode) =>
+              QRCode.toDataURL(url, { margin: 0, width: 96 }).then((qrImg) => {
+                if (gen === flowGen) useAuthStore.setState({ stage: 'qr', qrImg })
+              }),
+            )
         : undefined,
       // fires after Telegram accepted the number — the request definitely went out
       codeSentCallback: (sent) => {

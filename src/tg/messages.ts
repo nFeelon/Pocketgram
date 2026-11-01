@@ -21,10 +21,26 @@ export function mediaLabel(kind: MediaKind): string {
   return LABEL[kind] ?? ''
 }
 
+interface PollLike {
+  question?: string
+  answers?: { text?: string; voters?: number; chosen?: boolean }[]
+  isClosed?: boolean
+}
+
+/** Read-only poll rendering — voting isn't supported on the keypad build */
+function pollText(p: PollLike): string {
+  const opts = (p.answers ?? []).map(
+    (a) => `· ${a.chosen ? '✓ ' : ''}${a.text ?? ''}${a.voters ? ` (${a.voters})` : ''}`,
+  )
+  return `Опрос: ${p.question ?? ''}\n${opts.join('\n')}${p.isClosed ? '\n(завершён)' : ''}`
+}
+
 /** One-line summary for dialog rows and service messages */
 export function messagePreview(m: Message | null | undefined): string {
   if (!m) return ''
   if (m.isService) return '—'
+  const media = m.media as { type?: string; question?: string } | null
+  if (media?.type === 'poll') return `[Опрос] ${media.question ?? ''}`
   return m.text || mediaLabel(mediaKind(m.media)) || ''
 }
 
@@ -42,10 +58,11 @@ export function mapMessage(m: Message): ChatMessage {
   const kind = m.isService ? 'none' : mediaKind(media)
   const sender = m.sender as { id?: number; displayName?: string } | null
   const reply = m.replyToMessage
+  const poll = media?.type === 'poll' ? (media as unknown as PollLike) : null
   return {
     id: m.id,
     out: m.isOutgoing,
-    text: m.isService ? messagePreview(m) : m.text,
+    text: m.isService ? messagePreview(m) : m.text || (poll ? pollText(poll) : ''),
     time: Math.floor(m.date.getTime() / 1000),
     mediaKind: kind,
     // tgs/webm stickers can't play inline — the [Стикер] placeholder stands in
@@ -63,10 +80,21 @@ export function mapMessage(m: Message): ChatMessage {
 }
 
 export async function loadInitial(peerId: string) {
-  const page = await tg.getHistory(Number(peerId), { limit: 30 })
+  const { threadId } = useChatStore.getState()
+  // topic feeds go through search — getHistory has no thread filter
+  const page = threadId
+    ? await tg.searchMessages({ chatId: Number(peerId), query: '', threadId, limit: 30 })
+    : await tg.getHistory(Number(peerId), { limit: 30 })
   // user switched chats while the page was in flight — drop it
   if (useChatStore.getState().peerId !== peerId) return
-  useChatStore.getState().setMessages(page.map(mapMessage).reverse(), page.next ?? null)
+  // search offset is a bare message id — box it to fit the shared nextOffset shape
+  const next =
+    page.next == null
+      ? null
+      : threadId
+        ? { id: page.next as number, date: 0 }
+        : (page.next as { id: number; date: number })
+  useChatStore.getState().setMessages(page.map(mapMessage).reverse(), next)
   useChatStore.setState({ detached: false })
   void markRead(peerId)
 }
@@ -88,9 +116,12 @@ export async function jumpTo(peerId: string, msgId: number): Promise<number> {
 
 /** Fetch only messages newer than the cached tail — re-entry keeps the feed, this fills the gap */
 export async function loadTail(peerId: string) {
+  const { threadId } = useChatStore.getState()
   const last = useChatStore.getState().messages.at(-1)
   if (!last) return loadInitial(peerId)
-  const page = await tg.getHistory(Number(peerId), { minId: last.id, limit: 50 })
+  const page = threadId
+    ? await tg.searchMessages({ chatId: Number(peerId), query: '', threadId, minId: last.id, limit: 50 })
+    : await tg.getHistory(Number(peerId), { minId: last.id, limit: 50 })
   if (useChatStore.getState().peerId !== peerId) return
   // a whole page of missed messages means the middle is lost — rebuild instead
   if (page.length >= 50) return loadInitial(peerId)
@@ -105,15 +136,23 @@ export async function loadTail(peerId: string) {
 
 /** Prepend the next (older) history page; returns how many messages were added */
 export async function loadOlder(peerId: string): Promise<number> {
-  const { nextOffset, loadingMore, setLoadingMore } = useChatStore.getState()
+  const { nextOffset, loadingMore, setLoadingMore, threadId } = useChatStore.getState()
   if (!nextOffset || loadingMore) return 0
   setLoadingMore(true)
   try {
-    const page = await tg.getHistory(Number(peerId), { limit: 30, offset: nextOffset })
+    const page = threadId
+      ? await tg.searchMessages({ chatId: Number(peerId), query: '', threadId, offset: nextOffset.id, limit: 30 })
+      : await tg.getHistory(Number(peerId), { limit: 30, offset: nextOffset })
     if (useChatStore.getState().peerId !== peerId) return 0
     const mapped = page.map(mapMessage).reverse()
     useChatStore.getState().prepend(mapped)
-    useChatStore.setState({ nextOffset: page.next ?? null })
+    const next =
+      page.next == null
+        ? null
+        : threadId
+          ? { id: page.next as number, date: 0 }
+          : (page.next as { id: number; date: number })
+    useChatStore.setState({ nextOffset: next })
     return mapped.length
   } finally {
     useChatStore.getState().setLoadingMore(false)
@@ -130,7 +169,10 @@ export async function sendMessage(
   const { append, replace, remove } = useChatStore.getState()
   append({ id: tempId, out: true, text, time, mediaKind: 'none', replyTo: opts?.replyTo })
   try {
-    const sent = await tg.sendText(Number(peerId), text, { replyTo: opts?.replyTo?.id })
+    const sent = await tg.sendText(Number(peerId), text, {
+      replyTo: opts?.replyTo?.id,
+      threadId: useChatStore.getState().threadId ?? undefined,
+    })
     replace(tempId, mapMessage(sent))
     useDialogsStore.getState().bump(peerId, text, time, false)
     // the server drops the draft once the message lands
@@ -172,6 +214,19 @@ export async function markRead(peerId: string) {
   await tg.readHistory(Number(peerId)).catch(console.error)
 }
 
+export interface Topic {
+  id: number
+  title: string
+  isPinned: boolean
+  unreadCount: number
+}
+
+/** Forum topics of a supergroup («каналы» внутри группы) */
+export async function getTopics(peerId: string): Promise<Topic[]> {
+  const page = await tg.getForumTopics(Number(peerId), { limit: 100 })
+  return page.map((t) => ({ id: t.id, title: t.title, isPinned: t.isPinned, unreadCount: t.unreadCount }))
+}
+
 let subscribed = false
 
 /** Live updates: append to the open chat, bump the dialog list (once per session) */
@@ -181,8 +236,12 @@ export function initUpdates() {
   tg.onNewMessage.add((m) => {
     const id = String(m.chat.id)
     const isOpen = useChatStore.getState().peerId === id
+    // a scoped topic feed only takes its own thread's messages
+    const threadOk =
+      useChatStore.getState().threadId == null ||
+      m.replyToMessage?.threadId === useChatStore.getState().threadId
     // detached feeds (search/reply jump) have a gap — appending would corrupt order
-    if (isOpen && !useChatStore.getState().detached) {
+    if (isOpen && !useChatStore.getState().detached && threadOk) {
       useChatStore.getState().append(mapMessage(m))
       if (!m.isOutgoing) void tg.readHistory(m.chat.id, { maxId: m.id }).catch(console.error)
     }

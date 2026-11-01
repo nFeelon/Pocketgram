@@ -42,6 +42,7 @@ export interface PeerMeta {
   type: DialogType
   draft?: string
   readOutbox: number
+  isForum: boolean
 }
 
 /** Title/type/draft/readOutbox for a peer that isn't in the dialog list (opened from Contacts) */
@@ -52,5 +53,6 @@ export async function peerInfo(peerId: string): Promise<PeerMeta> {
     type: dialogTypeOf(d?.peer as Peer | undefined),
     draft: d?.draftMessage?.text,
     readOutbox: d?.lastReadOutgoing ?? 0,
+    isForum: (d?.peer as { isForum?: boolean } | undefined)?.isForum ?? false,
   }
 }

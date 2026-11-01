@@ -59,6 +59,10 @@
   background: var(--danger);
 }
 
+.flash-bar {
+  background: var(--accent2);
+}
+
 .forward-hint {
   padding: 2pt 6pt;
   font-size: calc(9pt * var(--fs, 1));

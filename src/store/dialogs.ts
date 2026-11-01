@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { tg } from '../tg/client.ts'
 
 export type DialogType = 'user' | 'group' | 'channel' | 'self'
 
@@ -14,6 +15,10 @@ export interface DialogEntry {
   readOutbox: number
   /** composer draft kept server-side */
   draft?: string
+  /** supergroup with topics enabled — chat menu gets a «Темы» picker */
+  isForum?: boolean
+  /** peer.photo.small FileLocation — lets Avatar skip a peer-resolve RPC */
+  photo?: Parameters<typeof tg.downloadAsBuffer>[0]
 }
 
 interface DialogsState {

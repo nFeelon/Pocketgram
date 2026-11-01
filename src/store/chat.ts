@@ -43,8 +43,12 @@ interface ChatState {
   loadingMore: boolean
   /** the feed jumped mid-history (search/reply jump) — newest messages aren't loaded */
   detached: boolean
+  /** forum topic the feed is scoped to; null = all messages (default) */
+  threadId: number | null
+  threadTitle: string
   compose: Compose | null
   setCompose: (c: Compose | null) => void
+  setThread: (threadId: number | null, threadTitle: string) => void
   open: (peerId: string, title: string, readOnly: boolean) => void
   setMessages: (ms: ChatMessage[], nextOffset: ChatState['nextOffset']) => void
   append: (m: ChatMessage) => void
@@ -63,8 +67,13 @@ export const useChatStore = create<ChatState>((set) => ({
   nextOffset: null,
   loadingMore: false,
   detached: false,
+  threadId: null,
+  threadTitle: '',
   compose: null,
   setCompose: (compose) => set({ compose }),
+  // switching topics discards the loaded feed — it belongs to the old thread
+  setThread: (threadId, threadTitle) =>
+    set({ threadId, threadTitle, messages: [], nextOffset: null, loadingMore: false, detached: false, compose: null }),
   open: (peerId, title, readOnly) =>
     // keep messages when re-entering the same chat (e.g. dialogs store refreshed, or
     // the user comes back — unmount keeps the feed under prevPeerId)
@@ -80,6 +89,8 @@ export const useChatStore = create<ChatState>((set) => ({
             nextOffset: null,
             loadingMore: false,
             detached: false,
+            threadId: null,
+            threadTitle: '',
             compose: null,
           },
     ),

@@ -24,7 +24,9 @@ import {
   markRead,
   jumpTo,
   mediaLabel,
+  getTopics,
 } from '../tg/messages.ts'
+import type { Topic } from '../tg/messages.ts'
 import { statusText, getUserStatusText, peerInfo } from '../tg/peers.ts'
 import type { PeerMeta } from '../tg/peers.ts'
 import { useSettingsStore } from '../store/settings.ts'
@@ -36,7 +38,7 @@ type DownloadableMedia = Parameters<typeof mediaUrl>[0]
 
 interface ViewerState {
   media: DownloadableMedia
-  kind: 'photo' | 'video' | 'video_note'
+  kind: 'photo' | 'video' | 'video_note' | 'voice' | 'audio'
   mimeType?: string
   size?: number
 }
@@ -67,19 +69,18 @@ export default function Chat() {
   const [searchMode, setSearchMode] = useState<'input' | 'results' | null>(null)
   const [searchResults, setSearchResults] = useState<{ id: number; text: string; time: number }[]>([])
   const [searchFocus, setSearchFocus] = useState(0)
+  // forum topic picker overlay — null = closed
+  const [topics, setTopics] = useState<Topic[] | null>(null)
+  const [topicFocus, setTopicFocus] = useState(0)
+  const threadTitle = useChatStore((s) => s.threadTitle)
   const [userStatus, setUserStatus] = useState('')
   const [feedLoaded, setFeedLoaded] = useState(false)
-  const [playingId, setPlayingId] = useState<number | null>(null)
   const composerRef = useRef<HTMLInputElement>(null)
   const sendRef = useRef<HTMLButtonElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const searchBtnRef = useRef<HTMLButtonElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
-  const audioRef = useRef<HTMLAudioElement>(null)
-  const playingUrl = useRef<string | null>(null)
-  // mirror of playingId readable inside async callbacks
-  const playingIdRef = useRef<number | null>(null)
   const prevMsgCount = useRef(0)
   const prevFirstId = useRef<number | undefined>(undefined)
   const lastRow = useRef(0)
@@ -107,6 +108,7 @@ export default function Chat() {
 
   const title = dialog?.title ?? peerMeta?.title
   const dialogType = dialog?.type ?? peerMeta?.type
+  const isForum = dialog?.isForum ?? peerMeta?.isForum ?? false
   useEffect(() => {
     useChatStore.getState().open(peerId, title ?? '', dialogType === 'channel')
   }, [peerId, title, dialogType])
@@ -191,11 +193,12 @@ export default function Chat() {
     }
   }, [clamped, n, rowFocused])
 
-  // viewer/search are history entries → RSK (popstate) closes them instead of leaving the chat
+  // viewer/search/topics are history entries → RSK (popstate) closes them instead of leaving the chat
   useEffect(() => {
     const onPop = () => {
       if (!location.hash.includes('#viewer')) setViewer(null)
       if (!location.hash.includes('#search')) setSearchMode(null)
+      if (!location.hash.includes('#topics')) setTopics(null)
     }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
@@ -231,6 +234,31 @@ export default function Chat() {
     else setSearchMode(null)
   }
 
+  // forum topics share the '#topics' history entry, opened over (in place of) '#menu'
+  const openTopics = () => {
+    setTopicFocus(0)
+    setTopics([])
+    if (!location.hash.includes('#topics')) navFromMenu('#topics')
+    void getTopics(peerId).then(setTopics).catch((e) => {
+      console.error(e)
+      closeTopics()
+    })
+  }
+
+  const closeTopics = () => {
+    if (location.hash.includes('#topics')) navigate(-1)
+    else setTopics(null)
+  }
+
+  const pickTopic = (t: Topic | null) => {
+    useChatStore.getState().setThread(t?.id ?? null, t?.title ?? '')
+    closeTopics()
+    setFeedLoaded(false)
+    void loadInitial(peerId)
+      .catch(console.error)
+      .finally(() => setFeedLoaded(true))
+  }
+
   useEffect(() => {
     if (searchMode === 'input') searchRef.current?.focus()
   }, [searchMode])
@@ -243,7 +271,13 @@ export default function Chat() {
     const q = searchRef.current?.value.trim()
     if (!q) return
     void tg
-      .searchMessages({ chatId: Number(peerId), query: q, limit: 20 })
+      .searchMessages({
+        chatId: Number(peerId),
+        query: q,
+        limit: 20,
+        // inside a topic the search stays inside it
+        threadId: useChatStore.getState().threadId ?? undefined,
+      })
       .then((res) => {
         setSearchResults(
           res.map((m) => ({
@@ -277,16 +311,6 @@ export default function Chat() {
         .catch(console.error)
   }
 
-  const stopAudio = () => {
-    audioRef.current?.pause()
-    if (playingUrl.current) revokeMediaUrl(playingUrl.current)
-    playingUrl.current = null
-    playingIdRef.current = null
-    setPlayingId(null)
-  }
-
-  useEffect(() => () => stopAudio(), [])
-
   const openFocused = () => {
     const m = messages[lastRow.current]
     if (m?.replyTo?.id != null && !m.media) {
@@ -294,30 +318,13 @@ export default function Chat() {
       jumpToMessage(m.replyTo.id)
     } else if (
       m?.media &&
-      (m.mediaKind === 'photo' || ((m.mediaKind === 'video' || m.mediaKind === 'video_note') && !m.isGif))
+      (m.mediaKind === 'photo' ||
+        ((m.mediaKind === 'video' || m.mediaKind === 'video_note') && !m.isGif) ||
+        m.mediaKind === 'voice' ||
+        m.mediaKind === 'audio')
     ) {
+      // one player overlay for everything playable — native controls handle volume/pause
       openViewer({ media: m.media as DownloadableMedia, kind: m.mediaKind, mimeType: m.mimeType, size: m.size })
-    } else if (m?.media && (m.mediaKind === 'voice' || m.mediaKind === 'audio')) {
-      if (playingIdRef.current === m.id) {
-        stopAudio()
-      } else {
-        stopAudio()
-        playingIdRef.current = m.id
-        setPlayingId(m.id)
-        void mediaUrl(m.media as DownloadableMedia, m.mimeType ?? 'audio/ogg')
-          .then((url) => {
-            // another message may have taken over while the blob downloaded
-            if (playingIdRef.current === m.id) {
-              playingUrl.current = url
-              audioRef.current!.src = url
-              void audioRef.current!.play()
-            } else revokeMediaUrl(url)
-          })
-          .catch((e) => {
-            console.error(e)
-            if (playingIdRef.current === m.id) stopAudio()
-          })
-      }
     }
   }
 
@@ -354,6 +361,15 @@ export default function Chat() {
       }
       if (searchMode) {
         if (e.key === 'Escape') closeSearch()
+        return
+      }
+      if (topics) {
+        // Escape reaches the softkey chain (it fires before this handler) — don't double-pop here
+        e.preventDefault()
+        const rows = topics.length + 1 // + «Все сообщения»
+        if (e.key === 'ArrowDown') setTopicFocus((f) => Math.min(rows - 1, f + 1))
+        else if (e.key === 'ArrowUp') setTopicFocus((f) => Math.max(0, f - 1))
+        else if (e.key === 'Enter') pickTopic(topicFocus === 0 ? null : topics[topicFocus - 1])
         return
       }
       switch (e.key) {
@@ -496,7 +512,10 @@ export default function Chat() {
 
   return (
     <div id="app" ref={rootRef}>
-      <Header title={title ?? 'Чат'} status={dialogType === 'channel' ? 'канал' : userStatus} />
+      <Header
+        title={title ? (threadTitle ? `${title} · ${threadTitle}` : title) : 'Чат'}
+        status={dialogType === 'channel' ? 'канал' : userStatus}
+      />
 
       <div className="message-list" ref={listRef}>
         {messages.map((m, i) => {
@@ -510,7 +529,6 @@ export default function Chat() {
               <div className={i === rowFocused ? 'msg-focused' : ''}>
                 <Bubble
                   msg={m}
-                  playing={m.id === playingId}
                   showSender={dialogType === 'group' && !m.out}
                   status={statusFor(m)}
                 />
@@ -576,6 +594,7 @@ export default function Chat() {
           <button type="button" onClick={() => setDelOpen(true)}>Удалить</button>
         )}
         <button type="button" onClick={openSearch}>Поиск</button>
+        {isForum && <button type="button" onClick={openTopics}>Темы</button>}
         <button type="button" onClick={showPinned}>Закреплённое</button>
         <button type="button" onClick={() => navFromMenu(`/info/${peerId}`)}>Информация</button>
         <button type="button" onClick={() => toggleMuted(peerId)}>
@@ -616,6 +635,31 @@ export default function Chat() {
         />
       )}
 
+      {topics && (
+        <div className="options-menu search-overlay">
+          {topics.length === 0 && <p className="empty">Загрузка…</p>}
+          <button
+            type="button"
+            className={topicFocus === 0 ? 'focused' : ''}
+            onClick={() => pickTopic(null)}
+          >
+            Все сообщения
+          </button>
+          {topics.map((t, i) => (
+            <button
+              key={t.id}
+              type="button"
+              className={i + 1 === topicFocus ? 'focused' : ''}
+              onClick={() => pickTopic(t)}
+            >
+              {t.isPinned ? '📌 ' : ''}
+              {t.title}
+              {t.unreadCount ? ` · ${t.unreadCount}` : ''}
+            </button>
+          ))}
+        </div>
+      )}
+
       {searchMode === 'results' && (
         <div className="options-menu search-overlay">
           {searchResults.length === 0 && <p className="empty">Ничего не найдено</p>}
@@ -635,8 +679,6 @@ export default function Chat() {
         </div>
       )}
 
-      <audio ref={audioRef} onEnded={stopAudio} hidden />
-
       <SoftKeyBar
         buttons={{
           start: { icon: 'menu', title: 'Опции' },
@@ -647,6 +689,7 @@ export default function Chat() {
           if (pos === 'start') {
             // Esc closes the topmost overlay first — never open the menu over the viewer
             if (searchMode) closeSearch()
+            else if (topics) closeTopics()
             else if (delOpen) setDelOpen(false)
             else if (pinned) setPinned(null)
             else if (viewer) closeViewer()

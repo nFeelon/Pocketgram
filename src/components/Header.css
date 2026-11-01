@@ -10,7 +10,7 @@
 
 .app-header h1 {
   margin: 0;
-  font-size: calc(12pt * var(--fs, 1));
+  font-size: calc(10pt * var(--fs, 1));
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
@@ -42,6 +42,6 @@
 /* QVGA */
 @media only screen and (min-width: 129px) and (max-width: 240px) {
   .app-header h1 {
-    font-size: calc(24pt * var(--fs, 1));
+    font-size: calc(22pt * var(--fs, 1));
   }
 }

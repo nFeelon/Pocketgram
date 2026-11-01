@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react'
+import { avatarUrl } from '../tg/avatars.ts'
 import { initial } from '../utils/format.ts'
 import './Avatar.css'
 
@@ -9,11 +11,29 @@ export function colorFor(id: string) {
   return PALETTE[Math.abs(h) % PALETTE.length]
 }
 
-export default function Avatar({ id, title }: { id: string; title: string }) {
-  // TODO: load real profile photos via tg.downloadAsBuffer → blob URL, cache in IndexedDB
+export default function Avatar({
+  id,
+  title,
+  photo,
+}: {
+  id: string
+  title: string
+  /** peer.photo.small FileLocation — callers holding the peer pass it to skip a resolve RPC */
+  photo?: Parameters<typeof avatarUrl>[1]
+}) {
+  const [src, setSrc] = useState<string | null>(null)
+  useEffect(() => {
+    let alive = true
+    void avatarUrl(id, photo).then((u) => {
+      if (alive) setSrc(u)
+    })
+    return () => {
+      alive = false
+    }
+  }, [id, photo])
   return (
-    <span className="avatar" style={{ background: colorFor(id) }} aria-hidden>
-      {initial(title)}
+    <span className="avatar" style={{ background: src ? 'transparent' : colorFor(id) }} aria-hidden>
+      {src ? <img src={src} alt="" /> : initial(title)}
     </span>
   )
 }

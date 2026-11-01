@@ -11,6 +11,7 @@ interface ContactEntry {
   id: string
   name: string
   phone: string
+  photo?: Parameters<typeof tg.downloadAsBuffer>[0]
 }
 
 /** Same focus zones as ChatList: -1 = search button, rows, n..n+2 = softkey bar */
@@ -35,6 +36,7 @@ export default function Contacts() {
               id: String(u.id),
               name: u.displayName,
               phone: u.phoneNumber ?? '',
+              photo: u.photo?.small,
             }))
             .sort((a, b) => a.name.localeCompare(b.name)),
         )
@@ -144,7 +146,8 @@ export default function Contacts() {
           ref={searchBtnRef}
           className="search-btn"
           aria-label="Поиск"
-          onClick={() => searchRef.current?.focus()}
+          // center = "done searching" → drop onto the first row, not back into the IME
+          onClick={() => setFocused(0)}
         >
           <SearchIcon />
         </button>
@@ -170,6 +173,7 @@ export default function Contacts() {
                 unread: 0,
                 pinned: false,
                 readOutbox: 0,
+                photo: c.photo,
               }}
             />
           </div>
@@ -192,7 +196,8 @@ export default function Contacts() {
         }}
         onSoftKeyClick={(pos) => {
           if (pos === 'center' && document.activeElement === centerBtn()) openContact(lastRow.current)
-          if (pos === 'end') navigate(-1)
+          // 'start' = Escape too: on devices where RSK isn't a real popstate, LSK still exits
+          if (pos === 'end' || pos === 'start') navigate(-1)
         }}
       />
     </div>

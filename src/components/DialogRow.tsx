@@ -9,7 +9,7 @@ export default function DialogRow({ dialog }: { dialog: DialogEntry }) {
   const muted = useSettingsStore((s) => s.muted.includes(dialog.id))
   return (
     <div className={`dialog-row${dialog.unread > 0 ? ' has-unread' : ''}`} data-type={dialog.type}>
-      <Avatar id={dialog.id} title={dialog.title} />
+      <Avatar id={dialog.id} title={dialog.title} photo={dialog.photo} />
       <div className="dialog-main">
         <div className="dialog-top">
           <span className="dialog-title">{dialog.title}</span>

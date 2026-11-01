@@ -19,6 +19,8 @@ export async function loadDialogs(limit = 50) {
       pinned: d.isPinned,
       readOutbox: d.lastReadOutgoing,
       draft: d.draftMessage?.text,
+      isForum: (d.peer as { isForum?: boolean }).isForum ?? false,
+      photo: (d.peer as { photo?: { small?: Parameters<typeof tg.downloadAsBuffer>[0] } }).photo?.small,
     })
   }
   useDialogsStore.getState().setDialogs(list)

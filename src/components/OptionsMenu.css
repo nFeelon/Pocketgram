@@ -7,6 +7,9 @@
   background: var(--bg);
   padding: 0;
   margin: 0;
+  /* long menus must scroll inside their box, not spill onto the softkey bar */
+  overflow-y: auto;
+  scrollbar-width: none;
 }
 
 .options-menu > * {

@@ -27,6 +27,7 @@ export default function ChatList() {
   const [exitOpen, setExitOpen] = useState(false)
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [unreadOnly, setUnreadOnly] = useState(false)
+  const [flash, setFlash] = useState('')
   const [searchParams] = useSearchParams()
   // '/?forward=<peerId>:<msgId>' — the list becomes a forward-target picker
   const forward = searchParams.get('forward')
@@ -36,14 +37,25 @@ export default function ChatList() {
   const listRef = useRef<HTMLDivElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
   const lastRow = useRef(0)
+  // blocks re-entrant sends while a forward is in flight
+  const forwardBusy = useRef(false)
+
+  const flashBar = (text: string) => {
+    setFlash(text)
+    setTimeout(() => setFlash(''), 1500)
+  }
 
   const refresh = () => {
     setStatus('loading')
     void loadDialogs().then(
-      () => setStatus('idle'),
+      () => {
+        setStatus('idle')
+        flashBar('Обновлено')
+      },
       (e) => {
         console.error(e)
         setStatus('error')
+        flashBar('Ошибка загрузки')
       },
     )
   }
@@ -73,10 +85,18 @@ export default function ChatList() {
     const d = visible[i]
     if (!d) return
     if (forward) {
+      // Enter may arrive repeatedly while the RPC runs — one forward per pick
+      if (forwardBusy.current) return
+      forwardBusy.current = true
       const [from, msg] = forward.split(':')
       void forwardMessage(d.id, from, Number(msg))
+        // landing inside the target chat is the visible confirmation
         .then(() => navigate(`/chat/${d.id}`, { replace: true }))
-        .catch(console.error)
+        .catch((e) => {
+          console.error(e)
+          forwardBusy.current = false
+          flashBar('Ошибка пересылки')
+        })
       return
     }
     navigate(`chat/${d.id}`)
@@ -151,12 +171,14 @@ export default function ChatList() {
       {conn !== 'connected' && conn !== 'updating' && (
         <div className="conn-bar">{conn === 'connecting' ? 'Подключение…' : 'Нет сети'}</div>
       )}
+      {flash && <div className="conn-bar flash-bar">{flash}</div>}
       <div className="search-row">
         <button
           ref={searchBtnRef}
           className="search-btn"
           aria-label="Поиск"
-          onClick={() => searchRef.current?.focus()}
+          // center = "done searching" → drop onto the first row, not back into the IME
+          onClick={() => setFocused(0)}
         >
           <SearchIcon />
         </button>

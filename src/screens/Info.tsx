@@ -110,7 +110,8 @@ export default function Info() {
       </section>
       <SoftKeyBar
         buttons={{ end: { icon: 'back', title: 'Назад' } }}
-        onSoftKeyClick={(pos) => pos === 'end' && navigate(-1)}
+        // 'start' = Escape too: on devices where RSK isn't a real popstate, LSK still exits
+        onSoftKeyClick={(pos) => pos !== 'center' && navigate(-1)}
       />
     </div>
   )

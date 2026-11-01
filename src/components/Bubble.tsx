@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import type { ChatMessage } from '../store/chat.ts'
 import { useSettingsStore } from '../store/settings.ts'
 import { mediaUrl, revokeMediaUrl, thumbOf } from '../tg/media.ts'
@@ -54,14 +54,14 @@ function Waveform({ bars }: { bars: number[] }) {
  * Message bubble. Media bodies are lazy: thumbs render cheap placeholders,
  * full blobs are fetched only when the user opens them (MediaViewer / play key).
  */
-export default function Bubble({
+// memo: D-pad focus moves re-render the whole list on every keypress —
+// bubbles whose props didn't change skip the work entirely
+const Bubble = memo(function Bubble({
   msg,
-  playing,
   showSender,
   status,
 }: {
   msg: ChatMessage
-  playing?: boolean
   /** group chats: name the sender of incoming messages */
   showSender?: boolean
   /** outgoing read state: ⏱ sending / ✓ sent / ✓✓ read */
@@ -105,7 +105,7 @@ export default function Bubble({
       case 'voice':
         return (
           <div className="media voice" role="button" aria-label="Голосовое">
-            {playing ? <span className="stop">■</span> : <PlayIcon />}
+            <PlayIcon />
             {msg.waveform && <Waveform bars={msg.waveform} />}
             <span className="media-meta">{msg.duration ? formatDuration(msg.duration) : ''}</span>
           </div>
@@ -113,7 +113,7 @@ export default function Bubble({
       case 'audio':
         return (
           <div className="media voice" role="button" aria-label="Аудио">
-            {playing ? <span className="stop">■</span> : <PlayIcon />}
+            <PlayIcon />
             <span>Аудио</span>
             <span className="media-meta">{msg.duration ? formatDuration(msg.duration) : ''}</span>
           </div>
@@ -158,4 +158,6 @@ export default function Bubble({
       </span>
     </div>
   )
-}
+})
+
+export default Bubble
