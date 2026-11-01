@@ -2,8 +2,8 @@
   width: 100%;
   display: flex;
   white-space: nowrap;
-  background: #17212b;
-  color: white;
+  background: var(--bg2);
+  color: var(--fg);
   flex: 0 0 auto;
   z-index: 2;
 }
@@ -16,8 +16,8 @@
   appearance: none;
   background: transparent;
   border: none;
-  color: white;
-  font-size: 9pt;
+  color: var(--fg);
+  font-size: calc(9pt * var(--fs, 1));
   gap: 2pt;
   min-width: 0;
   overflow: hidden;
@@ -35,7 +35,7 @@
 
   .softkey-bar > button {
     padding: 0 8pt;
-    font-size: 12pt;
+    font-size: calc(12pt * var(--fs, 1));
   }
 }
 
@@ -51,7 +51,8 @@
 }
 
 .softkey-bar > button:focus {
-  background: #1971e6;
+  background: var(--accent2);
+  color: #fff;
   outline: none;
 }
 

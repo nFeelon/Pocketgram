@@ -1,4 +1,5 @@
 import { TelegramClient } from '@mtcute/web'
+import { useConnStore } from '../store/conn.ts'
 
 const apiId = Number(import.meta.env.VITE_TG_API_ID)
 const apiHash = import.meta.env.VITE_TG_API_HASH
@@ -14,3 +15,5 @@ export const tg = new TelegramClient({
   // IndexedDB-backed storage; encrypted by Cloud Phone with a device-side key
   storage: 'pocketgram',
 })
+
+tg.onConnectionState.add((state) => useConnStore.setState({ state }))

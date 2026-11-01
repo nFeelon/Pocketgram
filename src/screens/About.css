@@ -1,9 +1,30 @@
 .about-body {
   flex: 1;
   padding: 8pt 6pt;
-  font-size: 10pt;
+  font-size: calc(10pt * var(--fs, 1));
+  overflow-y: auto;
+  scrollbar-width: none;
 }
 
 .about-body p {
   margin: 4pt 0;
+}
+
+.settings-body button,
+.members-btn {
+  display: block;
+  width: 100%;
+  text-align: start;
+  background: transparent;
+  border: none;
+  color: var(--fg);
+  font-size: calc(10pt * var(--fs, 1));
+  padding: 4pt 6pt;
+}
+
+.settings-body button:focus,
+.members-btn:focus {
+  background: var(--accent2);
+  color: #fff;
+  outline: none;
 }

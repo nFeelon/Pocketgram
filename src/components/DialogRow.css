@@ -6,10 +6,7 @@
   min-height: 26px;
 }
 
-.dialog-row.focused,
-.dialog-row:focus {
-  background: #1971e6;
-}
+
 
 .dialog-main {
   flex: 1;
@@ -24,7 +21,7 @@
 }
 
 .dialog-title {
-  font-size: 10pt;
+  font-size: calc(10pt * var(--fs, 1));
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
@@ -32,38 +29,52 @@
 }
 
 .dialog-time {
-  font-size: 8pt;
-  color: #7f91a4;
+  font-size: calc(8pt * var(--fs, 1));
+  color: var(--muted);
   flex: 0 0 auto;
 }
 
 .dialog-preview {
-  font-size: 9pt;
-  color: #a7b6c4;
+  font-size: calc(9pt * var(--fs, 1));
+  color: var(--fg2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   flex: 1;
 }
 
-.dialog-row.focused .dialog-preview,
-.dialog-row.focused .dialog-time {
-  color: #cfe0f5;
+.has-unread .dialog-preview {
+  color: var(--fg);
+  font-weight: 700;
+}
+
+.dialog-preview.draft {
+  color: var(--danger);
+}
+
+/* the focus class lives on the row wrapper, not on .dialog-row itself */
+.focused .dialog-preview,
+.focused .dialog-time {
+  color: var(--fg3);
 }
 
 .pin {
   width: 9px;
   height: 9px;
-  color: #7f91a4;
+  color: var(--muted);
   flex: 0 0 auto;
 }
 
 .unread {
-  background: #2b5278;
+  background: var(--badge);
   color: #fff;
   border-radius: 8px;
-  font-size: 8pt;
+  font-size: calc(8pt * var(--fs, 1));
   padding: 0 3pt;
   min-width: 12px;
   text-align: center;
+}
+
+.unread.muted {
+  background: var(--muted);
 }

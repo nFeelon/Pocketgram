@@ -20,6 +20,14 @@ export function mediaKind(media: MediaLike | null | undefined): MediaKind {
   }
 }
 
+/** Best-effort preview frame ('m' = 320 box, 's' = 100 box); null when the media has none */
+export function thumbOf(media: unknown): Parameters<typeof tg.downloadAsBuffer>[0] | null {
+  const m = media as {
+    getThumbnail?: (t: string) => Parameters<typeof tg.downloadAsBuffer>[0] | null
+  } | null
+  return m?.getThumbnail?.('m') ?? m?.getThumbnail?.('s') ?? null
+}
+
 const urls = new Set<string>()
 
 /** Download media bytes over MTProto and expose them as a blob: object URL.

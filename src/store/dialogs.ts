@@ -10,6 +10,10 @@ export interface DialogEntry {
   time: number // unix seconds
   unread: number
   pinned: boolean
+  /** last outgoing message id read by the peer — drives the ✓✓ ticks */
+  readOutbox: number
+  /** composer draft kept server-side */
+  draft?: string
 }
 
 interface DialogsState {
@@ -17,22 +21,40 @@ interface DialogsState {
   filter: string
   setFilter: (q: string) => void
   setDialogs: (d: DialogEntry[]) => void
-  bump: (id: string, preview: string, time: number) => void
+  bump: (id: string, preview: string, time: number, incUnread: boolean) => void
+  markRead: (id: string) => void
+  setReadOutbox: (id: string, maxReadId: number) => void
+  setDraft: (id: string, draft: string | undefined) => void
+  /** refresh the row's preview without touching time/order (edits of the latest message) */
+  setPreview: (id: string, preview: string) => void
 }
 
 const byPinnedThenTime = (a: DialogEntry, b: DialogEntry) =>
   Number(b.pinned) - Number(a.pinned) || b.time - a.time
 
 export const useDialogsStore = create<DialogsState>((set) => ({
-  // TODO: populate from tg.getDialogs() + onNewMessage
   dialogs: [],
   filter: '',
   setFilter: (filter) => set({ filter }),
   setDialogs: (dialogs) => set({ dialogs: [...dialogs].sort(byPinnedThenTime) }),
-  bump: (id, preview, time) =>
+  bump: (id, preview, time, incUnread) =>
     set((s) => ({
       dialogs: s.dialogs
-        .map((d) => (d.id === id ? { ...d, preview, time, unread: d.unread + 1 } : d))
+        .map((d) =>
+          d.id === id ? { ...d, preview, time, unread: incUnread ? d.unread + 1 : d.unread } : d,
+        )
         .sort(byPinnedThenTime),
     })),
+  markRead: (id) =>
+    set((s) => ({ dialogs: s.dialogs.map((d) => (d.id === id ? { ...d, unread: 0 } : d)) })),
+  setReadOutbox: (id, maxReadId) =>
+    set((s) => ({
+      dialogs: s.dialogs.map((d) =>
+        d.id === id && maxReadId > d.readOutbox ? { ...d, readOutbox: maxReadId } : d,
+      ),
+    })),
+  setDraft: (id, draft) =>
+    set((s) => ({ dialogs: s.dialogs.map((d) => (d.id === id ? { ...d, draft } : d)) })),
+  setPreview: (id, preview) =>
+    set((s) => ({ dialogs: s.dialogs.map((d) => (d.id === id ? { ...d, preview } : d)) })),
 }))

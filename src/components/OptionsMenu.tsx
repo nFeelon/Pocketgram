@@ -42,7 +42,12 @@ export default function OptionsMenu({ visible, children, onMenuItemSelected = ()
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault()
-          setFocusedIndex((prev) => (prev + 1) % items.length)
+          // ↓ past the last item leaves the modal — focus returns to whatever had it
+          // (e.g. the softkey bar), matching the YouTube-style bottom-sheet model
+          if (focusedIndex >= items.length - 1) {
+            if (location.hash.includes('#menu')) navigate(-1)
+            else onClose()
+          } else setFocusedIndex((prev) => (prev + 1) % items.length)
           break
         case 'ArrowUp':
           e.preventDefault()

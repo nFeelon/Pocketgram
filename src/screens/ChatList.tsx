@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router'
-import Header from '../components/Header.tsx'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import OptionsMenu from '../components/OptionsMenu.tsx'
 import SoftKeyBar from '../components/SoftKeyBar.tsx'
 import DialogRow from '../components/DialogRow.tsx'
 import Confirm from '../components/Confirm.tsx'
 import { useDialogsStore } from '../store/dialogs.ts'
+import { useConnStore } from '../store/conn.ts'
 import { signOut } from '../tg/auth.ts'
+import { loadDialogs } from '../tg/dialogs.ts'
+import { initUpdates, forwardMessage } from '../tg/messages.ts'
 import SearchIcon from '../assets/icons/search.svg?react'
 import './ChatList.css'
 
@@ -18,10 +20,16 @@ import './ChatList.css'
 export default function ChatList() {
   const navigate = useNavigate()
   const dialogs = useDialogsStore((s) => s.dialogs)
+  const conn = useConnStore((s) => s.state)
   const filter = useDialogsStore((s) => s.filter)
   const setFilter = useDialogsStore((s) => s.setFilter)
   const [menuVisible, setMenuVisible] = useState(location.hash.includes('#menu'))
   const [exitOpen, setExitOpen] = useState(false)
+  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [unreadOnly, setUnreadOnly] = useState(false)
+  const [searchParams] = useSearchParams()
+  // '/?forward=<peerId>:<msgId>' — the list becomes a forward-target picker
+  const forward = searchParams.get('forward')
   const [focused, setFocused] = useState(0)
   const searchRef = useRef<HTMLInputElement>(null)
   const searchBtnRef = useRef<HTMLButtonElement>(null)
@@ -29,9 +37,28 @@ export default function ChatList() {
   const rootRef = useRef<HTMLDivElement>(null)
   const lastRow = useRef(0)
 
-  const visible = filter
-    ? dialogs.filter((d) => d.title.toLowerCase().includes(filter.toLowerCase()))
-    : dialogs
+  const refresh = () => {
+    setStatus('loading')
+    void loadDialogs().then(
+      () => setStatus('idle'),
+      (e) => {
+        console.error(e)
+        setStatus('error')
+      },
+    )
+  }
+
+  // dialogs stay in the store when returning from a chat — updates keep them live
+  useEffect(() => {
+    initUpdates()
+    if (!useDialogsStore.getState().dialogs.length) refresh()
+  }, [])
+
+  const visible = dialogs.filter(
+    (d) =>
+      (!unreadOnly || d.unread > 0) &&
+      (!filter || d.title.toLowerCase().includes(filter.toLowerCase())),
+  )
   const n = visible.length
   const clamped = Math.min(Math.max(focused, -1), n + 2)
   const rowFocused = clamped >= 0 && clamped < n ? clamped : -1
@@ -44,7 +71,22 @@ export default function ChatList() {
 
   const openDialog = (i: number) => {
     const d = visible[i]
-    if (d) navigate(`chat/${d.id}`)
+    if (!d) return
+    if (forward) {
+      const [from, msg] = forward.split(':')
+      void forwardMessage(d.id, from, Number(msg))
+        .then(() => navigate(`/chat/${d.id}`, { replace: true }))
+        .catch(console.error)
+      return
+    }
+    navigate(`chat/${d.id}`)
+  }
+
+  // pop the '#menu' entry only if it's actually on top — a blind navigate(-1)
+  // can eat a real screen and throw the user out of the widget
+  const closeMenu = () => {
+    if (location.hash.includes('#menu')) navigate(-1)
+    else setMenuVisible(false)
   }
 
   // sync DOM focus onto the zone's button; keep the focused row on screen
@@ -90,6 +132,11 @@ export default function ChatList() {
             setFocused(Math.min(n + 2, clamped + 1))
           }
           break
+        case '*':
+          e.preventDefault()
+          setUnreadOnly((v) => !v)
+          setFocused(0)
+          break
         case 'Enter':
           if (rowFocused >= 0) openDialog(rowFocused)
           break
@@ -101,8 +148,9 @@ export default function ChatList() {
 
   return (
     <div id="app" ref={rootRef}>
-      <Header title="Pocketgram" status="4G" />
-
+      {conn !== 'connected' && conn !== 'updating' && (
+        <div className="conn-bar">{conn === 'connecting' ? 'Подключение…' : 'Нет сети'}</div>
+      )}
       <div className="search-row">
         <button
           ref={searchBtnRef}
@@ -133,6 +181,8 @@ export default function ChatList() {
         />
       </div>
 
+      {forward && <div className="forward-hint">Куда переслать?</div>}
+
       <div className="dialog-list" ref={listRef} role="listbox">
         {visible.map((d, i) => (
           <div
@@ -141,12 +191,22 @@ export default function ChatList() {
             tabIndex={i}
             aria-selected={i === rowFocused}
             className={i === rowFocused ? 'focused' : ''}
-            onClick={() => navigate(`chat/${d.id}`)}
+            onClick={() => openDialog(i)}
           >
             <DialogRow dialog={d} />
           </div>
         ))}
-        {n === 0 && <p className="empty">Нет чатов</p>}
+        {n === 0 && (
+          <p className="empty">
+            {unreadOnly
+              ? 'Нет непрочитанных'
+              : status === 'loading'
+                ? 'Загрузка…'
+                : status === 'error'
+                  ? 'Ошибка загрузки'
+                  : 'Нет чатов'}
+          </p>
+        )}
       </div>
 
       <OptionsMenu
@@ -154,10 +214,12 @@ export default function ChatList() {
         onClose={() => setMenuVisible(false)}
         // a <Link> child already replaces the '#menu' entry; buttons need an explicit pop
         onMenuItemSelected={(child) => {
-          if (child.type !== Link) navigate(-1)
+          if (child.type !== Link) closeMenu()
         }}
       >
-        <button type="button" onClick={() => {/* TODO: refresh dialogs */}}>Обновить</button>
+        <button type="button" onClick={refresh}>Обновить</button>
+        <Link to="contacts" replace>Контакты</Link>
+        <Link to="settings" replace>Настройки</Link>
         <Link to="about" replace>О приложении</Link>
         <button type="button" onClick={() => setExitOpen(true)}>Выйти</button>
       </OptionsMenu>
@@ -180,7 +242,7 @@ export default function ChatList() {
           if (pos === 'start') {
             // closing via history keeps the '#menu' entry in sync with the flag
             if (exitOpen) setExitOpen(false)
-            else if (menuVisible) navigate(-1)
+            else if (menuVisible) closeMenu()
             else setMenuVisible(true)
           }
           // row-Enter already opens the dialog — only open when the button itself is focused

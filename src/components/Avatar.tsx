@@ -3,7 +3,7 @@ import './Avatar.css'
 
 const PALETTE = ['#e17076', '#eda86c', '#a695e7', '#7bc862', '#6ec9cb', '#65aadd', '#ee7aae']
 
-function colorFor(id: string) {
+export function colorFor(id: string) {
   let h = 0
   for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) | 0
   return PALETTE[Math.abs(h) % PALETTE.length]

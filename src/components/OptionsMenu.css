@@ -4,7 +4,7 @@
   height: 100vh;
   inset: 0;
   z-index: 10;
-  background: #0e1621;
+  background: var(--bg);
   padding: 0;
   margin: 0;
 }
@@ -13,7 +13,7 @@
   margin: 0;
   padding: 0.35em 4pt;
   font-size: 1em;
-  color: white;
+  color: var(--fg);
   background: transparent;
   border: none;
   appearance: none;
@@ -31,8 +31,9 @@
 .options-menu > *.focused,
 .options-menu > *:focus,
 .options-menu > *:active {
-  background-color: #1971e6;
-  border-image: conic-gradient(#1971e6 0 0) fill 0 / / 0 100vw;
+  background-color: var(--accent2);
+  color: #fff;
+  border-image: conic-gradient(var(--accent2) 0 0) fill 0 / / 0 100vw;
 }
 
 /* QVGA */

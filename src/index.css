@@ -1,8 +1,42 @@
 :root {
+  --bg: #0e1621;
+  --bg2: #17212b;
+  --bg3: #242f3d;
+  --fg: #fff;
+  --fg2: #a7b6c4;
+  --fg3: #cfe0f5;
+  --muted: #7f91a4;
+  --time: #9fb8d0;
+  --accent: #5cb5ff;
+  --accent2: #1971e6;
+  --in: #2b5278;
+  --out: #3e6b48;
+  --badge: #2b5278;
+  --danger: #e17076;
+}
+
+[data-theme='light'] {
+  --bg: #ffffff;
+  --bg2: #f0f2f5;
+  --bg3: #e8eaed;
+  --fg: #000;
+  --fg2: #555;
+  --fg3: #555;
+  --muted: #8a8a8a;
+  --time: #8a8a8a;
+  --accent: #1971e6;
+  --accent2: #1971e6;
+  --in: #e4ecf5;
+  --out: #dcf3c8;
+  --badge: #1971e6;
+  --danger: #d32f2f;
+}
+
+:root {
   /* Roboto ships with the server-side Chromium (same as the official sample) */
   font-family: 'Roboto', sans-serif;
-  background: #0e1621;
-  color: #fff;
+  background: var(--bg);
+  color: var(--fg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -15,11 +49,11 @@ body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  font-size: 10pt; /* QQVGA typography baseline */
+  font-size: calc(10pt * var(--fs, 1)); /* QQVGA typography baseline */
 }
 
 a {
-  color: #5cb5ff;
+  color: var(--accent);
 }
 
 * {

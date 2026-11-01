@@ -9,39 +9,39 @@
 }
 
 .auth-label {
-  font-size: 10pt;
+  font-size: calc(10pt * var(--fs, 1));
   font-weight: 700;
 }
 
 .auth-body input {
-  background: #242f3d;
+  background: var(--bg3);
   border: none;
   border-radius: 4px;
-  color: #fff;
-  font-size: 10pt;
+  color: var(--fg);
+  font-size: calc(10pt * var(--fs, 1));
   padding: 4pt 6pt;
 }
 
 .auth-body input:focus {
-  outline: 2px solid #5cb5ff;
+  outline: 2px solid var(--accent);
 }
 
 .auth-next {
-  background: #2b5278;
+  background: var(--badge);
   border: none;
   border-radius: 4px;
   color: #fff;
-  font-size: 10pt;
+  font-size: calc(10pt * var(--fs, 1));
   padding: 4pt 6pt;
 }
 
 .auth-next:focus {
-  outline: 2px solid #5cb5ff;
+  outline: 2px solid var(--accent);
 }
 
 .auth-next.secondary {
   background: transparent;
-  border: 1px solid #2b5278;
+  border: 1px solid var(--badge);
 }
 
 .qr {
@@ -52,18 +52,18 @@
 }
 
 .qr:focus {
-  outline: 2px solid #5cb5ff;
+  outline: 2px solid var(--accent);
 }
 
 .auth-hint {
-  font-size: 9pt;
-  color: #7f91a4;
+  font-size: calc(9pt * var(--fs, 1));
+  color: var(--muted);
   margin: 0;
 }
 
 .auth-error {
-  font-size: 9pt;
-  color: #e17076;
+  font-size: calc(9pt * var(--fs, 1));
+  color: var(--danger);
   margin: 0;
   white-space: pre-wrap;
 }

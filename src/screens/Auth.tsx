@@ -2,7 +2,6 @@ import { useEffect, useRef } from 'react'
 import { signIn, resendViaSms, loginViaQr, loginViaPhone } from '../tg/auth.ts'
 import type { AuthField } from '../tg/auth.ts'
 import { useAuthStore, authReady, authError } from '../store/auth.ts'
-import Header from '../components/Header.tsx'
 import './Auth.css'
 
 const FIELD_META: Record<AuthField, { label: string; hint: string; type: 'tel' | 'text' | 'password' }> = {
@@ -61,7 +60,6 @@ export default function Auth() {
 
   return (
     <div id="app">
-      <Header title="Pocketgram" />
       <section className="auth-body">
         {meta && (
           <>

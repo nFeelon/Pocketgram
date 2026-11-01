@@ -77,20 +77,29 @@ localStorage/IndexedDB/cookies хранятся на серверах CloudMosa,
 ```
 src/
 ├── main.tsx                 # createRoot + HashRouter
-├── App.tsx                  # auth-gate → Routes (ChatList / Chat / About)
-├── index.css                # глобальная тёмная тема, фокус-стили
+├── App.tsx                  # auth-gate → Routes (ChatList / Chat / Contacts / Info / Settings / About)
+├── index.css                # тема через CSS-переменные (dark/light), --fs для размера шрифта
 ├── tg/
-│   ├── client.ts            # singleton: new TelegramClient({ apiId, apiHash, storage: 'pocketgram' })
+│   ├── client.ts            # singleton: new TelegramClient(...) + onConnectionState → conn store
 │   ├── auth.ts              # signIn(ask) → tg.start({phone,code,password}); signOut
-│   └── media.ts             # mediaKind(), mediaUrl()→blob URL, MAX_PLAYABLE_BYTES
+│   ├── dialogs.ts           # iterDialogs → DialogEntry (+readOutbox, draft)
+│   ├── messages.ts          # mapMessage, история/jumpTo, send/edit/delete/forward/draft, initUpdates
+│   ├── peers.ts             # statusText (last-seen), peerInfo (peer вне списка диалогов)
+│   ├── notify.ts            # WAV-бип в коде + vibrate по настройкам
+│   └── media.ts             # mediaKind(), mediaUrl()→blob URL, thumbOf(), MAX_PLAYABLE_BYTES
 ├── store/
 │   ├── auth.ts              # stage: boot|phone|code|password|ready|error + submit/_ask
-│   ├── dialogs.ts           # DialogEntry[] {id,title,type,preview,time,unread,pinned}
-│   └── chat.ts              # открытый чат: messages[], readOnly, open/append/prepend
+│   ├── dialogs.ts           # DialogEntry[] {id,title,type,preview,time,unread,pinned,readOutbox,draft}
+│   ├── chat.ts              # открытый чат: messages[], readOnly, compose, detached, open/append/prepend
+│   ├── conn.ts              # ConnectionState из onConnectionState
+│   └── settings.ts          # font/theme/sound/vibrate/dnd/thumbs/muted (persist → localStorage)
 ├── screens/
 │   ├── Auth.tsx             # phone → code → 2FA password (нативный IME)
-│   ├── ChatList.tsx         # поиск + список диалогов + OptionsMenu
-│   ├── Chat.tsx             # лента сообщений + Composer + MediaViewer
+│   ├── ChatList.tsx         # поиск + список диалогов + OptionsMenu + pick-режим пересылки
+│   ├── Chat.tsx             # лента сообщений + Composer + MediaViewer + поиск по чату
+│   ├── Contacts.tsx         # контакты Telegram → открыть чат
+│   ├── Info.tsx             # профиль user/группы/канала + участники
+│   ├── Settings.tsx         # шрифт/тема/звук/вибро/Не беспокоить/миниатюры
 │   └── About.tsx
 ├── components/
 │   ├── Header.tsx(.css)     # заголовок + статус; marquee для длинных имён (бэклог)
@@ -141,23 +150,33 @@ src/
 Бюджет QQVGA 128×160: хедер 20px + софтбар 20px + тело ~120px → ~4 строки диалога или ~5–6 пузырей.
 
 ### Auth (`stage: phone|code|password|qr`)
-- Хедер «Pocketgram»; метка поля, `<input>` (tel/text/password), кнопка «Продолжить» (`↓` из поля — центр на поле открывает нативный IME, до Enter не доходит), ошибка красным.
+- Без хедера (экономия вертикали); метка поля, `<input>` (tel/text/password), кнопка «Продолжить» (`↓` из поля — центр на поле открывает нативный IME, до Enter не доходит), ошибка красным.
 - На code-стадии — кнопка «Прислать SMS» (рестарт `start` с `forceSms`; номер кешируется) + подсказка канала доставки (`codeSentCallback`).
 - На phone-стадии — «Вход по QR-коду» (`qrCodeHandler` → `stage:'qr'`, QR фокусируемый первым; обход доставки кодов — актуально для аккаунтов < ~6 мес., Telegram молча режет им коды на сторонних api_id). «По номеру» — назад.
 - Подсказки управления намерено не выводятся (приватный клиент).
 
 ### ChatList (index-роут)
-- Хедер: `Pocketgram` + справа `4G`/онлайн. Поле «Поиск…» — локальный фильтр по имени.
+- Без хедера (экономия вертикали). Поле «Поиск…» — локальный фильтр по имени.
 - Строки: аватар-круг 20px (инициал, цвет по id), имя 12pt bold, превью 10pt, время, бейдж unread, pin.
 - Фокус-зоны (модель YouTube на Cloud Phone): кнопка `🔍` → строки → нижний бар — всё реально фокусируемые элементы, `↑↓` двигают по вертикали, `←→` между кнопками бара. Центр на `🔍` → поле поиска (IME); центр на строке/кнопке — действие. `↓` на кнопке бара — скроллит ленту, фокус не уходит.
-- Клавиши: `Enter`/CSK — открыть чат, `0-9` — T9-jump к первому совпадению (бэклог), LSK — OptionsMenu: *Обновить / О приложении / Выйти* (выход → Confirm → `auth.logOut` + очистка → Auth), RSK — выход из виджета (`window.close`).
+- Клавиши: `Enter`/CSK — открыть чат (в pick-режиме `?forward=` — переслать и перейти в целевой), `*` — фильтр «только непрочитанные», `0-9` — T9-jump к первому совпадению (бэклог), LSK — OptionsMenu: *Обновить / Контакты / Настройки / О приложении / Выйти* (выход → Confirm → `auth.logOut` + очистка → Auth), RSK — выход из виджета (`window.close`).
+- При отсутствии сети сверху полоска «Нет сети»/«Подключение…» (`onConnectionState`).
 
 ### Chat (`/chat/:peerId`)
-- Хедер: имя собеседника + статус («канал»/онлайн — бэклог).
-- Лента: `in` — `#2b5278` слева, `out` — `#3e6b48` справа (как на макете), время 8pt справа снизу пузыря.
-- Композер: `<input placeholder="Сообщение…">` + кнопка `➤` (`↓` из поля; `↓` с `➤` → нижний бар; отправка через `tg.sendText`, оптимистичный append). В read-only каналах композер скрыт.
-- Клавиши: `↑↓` фокус по сообщениям (старт с последнего) → поле → `➤` → нижний бар (`←→` между его кнопками, `↓` на баре — скролл ленты); `Enter` на пузыре — фото/видео → MediaViewer, на голосовом → play/stop; центр на кнопке бара — её действие; LSK — опции (*Информация / Прочитано / Скачать* — если `FileDownload`), RSK — назад в список.
-- `↑` в верхней части ленты → подгрузка истории (`getHistory offset=minId`).
+- Хедер: имя собеседника + статус («канал», у user-диалогов — last-seen «в сети»/«был …», обновляется по `onUserStatusUpdate`). Точка соединения слева при offline/connecting.
+- Лента: `in`/`out` пузыри, разделители дат, имя отправителя в группах, плашка `↩` у ответов, `изм.` у правок, статусы `⏱`/`✓`/`✓✓` у исходящих (`lastReadOutgoing` + `onHistoryRead`), миниатюры (отключаемо в настройках), GIF — статично.
+- Композер: `<input placeholder="Сообщение…">` + кнопка `➤`; черновик подхватывается из `dialog.draftMessage` и сохраняется `saveDraft` при выходе; плашка `↩`/`✎` в режиме ответа/правки (Esc — отмена). В read-only каналах композер скрыт.
+- Клавиши: `↑↓` фокус по сообщениям (старт с последнего/запомненного) → поле → `➤` → нижний бар; `#` — к последнему сообщению (после прыжка — перезагрузка хвоста); `←→` на пузыре — соседний диалог; `Enter` — фото/видео → MediaViewer, голосовое/аудио → play/stop, текстовый ответ → переход к оригиналу; LSK — меню действий (*Ответить · Цитировать · Переслать · Открыть ссылку · Изменить · Удалить · Поиск · Закреплённое · Информация · Без звука · Прочитано · Скачать*), RSK — назад.
+- Поиск в чате (`#search` history entry): поле + «Найти» → `searchMessages` → список результатов → центр → `jumpTo` (история вокруг сообщения, лента помечается `detached`).
+
+### Contacts (`/contacts`)
+- `getContacts()` → строки аватар+имя+телефон, фильтр по имени/цифрам, та же фокус-модель, что в списке чатов. Центр → `/chat/:id` (peer вне списка диалогов подтягивается через `peerInfo`).
+
+### Info (`/info/:peerId`)
+- `getFullUser`/`getFullChat` → имя, @username, телефон, статус/bio, участников/в сети; кнопка «Участники» (`canViewParticipants`) → `getChatMembers` списком ниже. `↑↓` — скролл/кнопка, как в About.
+
+### Settings (`/settings`)
+- Кнопки-строки: `Шрифт 9–12pt` (`--fs` на :root), `Тема` (`data-theme`), `Звук`, `Вибрация`, `Не беспокоить`, `Миниатюры`, строка `Соединение`. Persist в localStorage `pg-settings`.
 
 ### MediaViewer (оверлей + history entry)
 - Фото — `object-fit: contain` на весь экран; видео/кружок — нативный `<video controls>`; перед загрузкой показать размер файла; RSK/Esc — закрыть.
@@ -218,4 +237,4 @@ src/
 
 ## 10. Вне скоупа v1 (бэклог)
 
-Отправка фото/файлов (`FileUpload`/`ImageUpload`), запись голосовых (`AudioCapture` + MediaRecorder→opus — спорно), эмодзи-пикер, T9-jump по списку, аватары-фото, marquee в хедере, typing-индикаторы, серверный поиск сообщений, tgs-анимации, ответы/реакции/редактирование, уведомления, i18n, QVGA-полировка.
+Отправка фото/файлов (`FileUpload`/`ImageUpload`), запись голосовых (`AudioCapture` + MediaRecorder→opus — спорно), эмодзи-пикер, T9-jump по списку, аватары-фото, marquee в хедере, typing-индикаторы, tgs-анимации, реакции, i18n, QVGA-полировка.

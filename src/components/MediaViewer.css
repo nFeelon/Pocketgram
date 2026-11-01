@@ -16,8 +16,8 @@
 }
 
 .media-viewer .hint {
-  font-size: 9pt;
-  color: #a7b6c4;
+  font-size: calc(9pt * var(--fs, 1));
+  color: var(--fg2);
   padding: 8pt;
   text-align: center;
 }
@@ -29,6 +29,6 @@
   background: transparent;
   border: none;
   color: #fff;
-  font-size: 9pt;
+  font-size: calc(9pt * var(--fs, 1));
   padding: 3pt 6pt;
 }
