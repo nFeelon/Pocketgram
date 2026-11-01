@@ -5,6 +5,8 @@ export type AuthField = 'phone' | 'code' | 'password'
 
 // React StrictMode double-mounts effects in dev — memoize so tg.start never runs twice
 let flow: ReturnType<typeof tg.start> | undefined
+// phone cached after the first ask — an SMS-retry restarts the flow without re-asking
+let lastPhone: string | undefined
 
 /**
  * Drives tg.start() where each credential request is delegated to the UI:
@@ -22,10 +24,11 @@ const VIA: Record<string, string> = {
   email: 'на e-mail',
 }
 
-export function signIn(ask: (field: AuthField) => Promise<string>) {
+export function signIn(ask: (field: AuthField) => Promise<string>, forceSms = false) {
   flow ??= tg
     .start({
-      phone: () => ask('phone'),
+      phone: () => lastPhone ?? ask('phone').then((v) => (lastPhone = v)),
+      forceSms,
       code: () => ask('code'),
       password: () => ask('password'),
       // fires after Telegram accepted the number — the request definitely went out
@@ -43,12 +46,23 @@ export function signIn(ask: (field: AuthField) => Promise<string>) {
   return flow
 }
 
+/**
+ * Abandon the current start() and re-run it with forceSms — Telegram re-delivers
+ * the code via the next channel (usually SMS) with a fresh phoneCodeHash.
+ * A plain tg.resendCode() would mint a new hash that the running start() never sees.
+ */
+export function resendViaSms(ask: (field: AuthField) => Promise<string>) {
+  flow = undefined
+  return signIn(ask, true)
+}
+
 /** Terminate the Telegram session, drop the local session store and restart */
 export async function signOut() {
   try {
     await tg.call({ _: 'auth.logOut' })
   } finally {
     flow = undefined
+    lastPhone = undefined
     // wait for deletion before reload — otherwise reload wins the race and the session survives
     await new Promise<void>((resolve) => {
       const req = indexedDB.deleteDatabase('pocketgram')

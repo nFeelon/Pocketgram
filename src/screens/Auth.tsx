@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { signIn } from '../tg/auth.ts'
+import { signIn, resendViaSms } from '../tg/auth.ts'
 import type { AuthField } from '../tg/auth.ts'
 import { useAuthStore, authReady, authError } from '../store/auth.ts'
 import Header from '../components/Header.tsx'
@@ -19,22 +19,23 @@ export default function Auth() {
   const ask = useAuthStore((s) => s._ask)
   const inputRef = useRef<HTMLInputElement>(null)
   const nextRef = useRef<HTMLButtonElement>(null)
+  const smsRef = useRef<HTMLButtonElement>(null)
+
+  const flowOk = (self: { displayName: string }) => {
+    useAuthStore.setState({ selfName: self.displayName })
+    authReady()
+  }
+  const flowErr = (e: unknown) =>
+    authError(
+      (e instanceof Error ? e.message : String(e)).replace(
+        /FLOOD_WAIT_(\d+)/,
+        'Слишком часто — подождите $1 с',
+      ),
+    )
 
   // Boot: restore session or run the interactive login flow exactly once
   useEffect(() => {
-    signIn(ask)
-      .then((self) => {
-        useAuthStore.setState({ selfName: self.displayName })
-        authReady()
-      })
-      .catch((e: unknown) =>
-        authError(
-          (e instanceof Error ? e.message : String(e)).replace(
-            /FLOOD_WAIT_(\d+)/,
-            'Слишком часто — подождите $1 с',
-          ),
-        ),
-      )
+    signIn(ask).then(flowOk).catch(flowErr)
   }, [])
 
   useEffect(() => inputRef.current?.focus(), [stage])
@@ -74,10 +75,23 @@ export default function Auth() {
               onClick={submitField}
               onKeyDown={(e) => {
                 if (e.key === 'ArrowUp') inputRef.current?.focus()
+                if (e.key === 'ArrowDown') smsRef.current?.focus()
               }}
             >
               Продолжить
             </button>
+            {stage === 'code' && (
+              <button
+                ref={smsRef}
+                className="auth-next secondary"
+                onClick={() => void resendViaSms(ask).then(flowOk).catch(flowErr)}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowUp') nextRef.current?.focus()
+                }}
+              >
+                Прислать SMS
+              </button>
+            )}
             <p className="auth-hint">Центр — ввод · ↓ — к кнопке</p>
             {codeVia && <p className="auth-hint">{codeVia}</p>}
           </>

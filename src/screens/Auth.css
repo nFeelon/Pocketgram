@@ -37,6 +37,11 @@
   outline: 2px solid #5cb5ff;
 }
 
+.auth-next.secondary {
+  background: transparent;
+  border: 1px solid #2b5278;
+}
+
 .auth-hint {
   font-size: 9pt;
   color: #7f91a4;
