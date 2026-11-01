@@ -1,6 +1,7 @@
 import type { DialogEntry } from '../store/dialogs.ts'
 import { useSettingsStore } from '../store/settings.ts'
 import Avatar from './Avatar.tsx'
+import Marquee from './Marquee.tsx'
 import PinIcon from '../assets/icons/pin.svg?react'
 import { formatTime } from '../utils/format.ts'
 import './DialogRow.css'
@@ -12,7 +13,9 @@ export default function DialogRow({ dialog }: { dialog: DialogEntry }) {
       <Avatar id={dialog.id} title={dialog.title} photo={dialog.photo} />
       <div className="dialog-main">
         <div className="dialog-top">
-          <span className="dialog-title">{dialog.title}</span>
+          <span className="dialog-title">
+            <Marquee text={dialog.title} />
+          </span>
           {dialog.pinned && <PinIcon className="pin" />}
           {dialog.time > 0 && <span className="dialog-time">{formatTime(dialog.time)}</span>}
         </div>
@@ -21,7 +24,10 @@ export default function DialogRow({ dialog }: { dialog: DialogEntry }) {
             {!dialog.draft && dialog.outId != null && (
               <span className="read-tick">{dialog.outId <= dialog.readOutbox ? '✓✓' : '✓'}</span>
             )}
-            {dialog.draft ? `Черновик: ${dialog.draft}` : dialog.preview}
+            <Marquee
+              whenFocused
+              text={dialog.draft ? `Черновик: ${dialog.draft}` : dialog.preview}
+            />
           </span>
           {dialog.unread > 0 && <span className={`unread${muted ? ' muted' : ''}`}>{dialog.unread}</span>}
         </div>

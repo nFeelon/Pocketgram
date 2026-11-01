@@ -60,6 +60,9 @@ export default function Settings() {
         <button onClick={() => s.toggle('vibrate')}>Вибрация: {onOff(s.vibrate)}</button>
         <button onClick={() => s.toggle('dnd')}>Не беспокоить: {onOff(s.dnd)}</button>
         <button onClick={() => s.toggle('thumbs')}>Миниатюры: {onOff(s.thumbs)}</button>
+        <button onClick={() => s.toggle('fsVideo')}>
+          Видео: {s.fsVideo ? 'системное' : 'инлайн'}
+        </button>
         <button
           onClick={() =>
             void clearMediaCache()

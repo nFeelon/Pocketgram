@@ -47,8 +47,23 @@ export default function SoftKeyBar({ buttons = {}, onSoftKeyClick = () => {} }: 
           return onSoftKeyClick('end')
       }
     }
+    // Cloud Phone RSK isn't a keyboard key — it's the 'back' window event
+    // (default: history.back or app exit). HashRouter keeps route + overlay in
+    // location.hash ('#/chat/1#menu') — at the root list ('#/') with no overlay
+    // the default run IS the user asking to quit, so we let it through.
+    const handleBack = (e: Event) => {
+      const h = location.hash
+      const atRoot = h === '' || h === '#' || h === '#/'
+      if (atRoot && !/#(menu|viewer|search|topics)$/.test(h)) return
+      e.preventDefault()
+      onSoftKeyClick('end')
+    }
     window.addEventListener('keydown', handleEvent)
-    return () => window.removeEventListener('keydown', handleEvent)
+    window.addEventListener('back', handleBack)
+    return () => {
+      window.removeEventListener('keydown', handleEvent)
+      window.removeEventListener('back', handleBack)
+    }
   })
 
   const renderButton = (position: SoftKeyPosition) => {

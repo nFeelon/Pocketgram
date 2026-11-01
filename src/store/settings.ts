@@ -8,9 +8,11 @@ interface SettingsState {
   vibrate: boolean
   dnd: boolean
   thumbs: boolean
+  /** true = let Cloud Phone render <video> fullscreen (system player); false = inline */
+  fsVideo: boolean
   muted: string[]
   cycleFont: () => void
-  toggle: (key: 'theme' | 'sound' | 'vibrate' | 'dnd' | 'thumbs') => void
+  toggle: (key: 'theme' | 'sound' | 'vibrate' | 'dnd' | 'thumbs' | 'fsVideo') => void
   toggleMuted: (id: string) => void
 }
 
@@ -25,6 +27,7 @@ export const useSettingsStore = create<SettingsState>()(
       vibrate: true,
       dnd: false,
       thumbs: true,
+      fsVideo: false,
       muted: [],
       cycleFont: () =>
         set((s) => ({ font: FONTS[(FONTS.indexOf(s.font) + 1) % FONTS.length] })),

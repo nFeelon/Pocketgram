@@ -23,9 +23,9 @@
 .dialog-title {
   font-size: calc(10pt * var(--fs, 1));
   font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
+  display: flex;
   flex: 1;
+  min-width: 0;
 }
 
 .dialog-time {
@@ -36,15 +36,21 @@
 
 .read-tick {
   margin-right: 2px;
+  flex: 0 0 auto;
+}
+
+.dialog-preview .mq,
+.dialog-title .mq {
+  flex: 1;
 }
 
 .dialog-preview {
   font-size: calc(9pt * var(--fs, 1));
   color: var(--fg2);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
   flex: 1;
+  min-width: 0;
 }
 
 .has-unread .dialog-preview {

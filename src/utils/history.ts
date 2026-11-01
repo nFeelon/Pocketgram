@@ -1,7 +1,8 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router'
 
-const OVERLAY = /^#(menu|viewer|search|topics)$/
+// HashRouter: '#/chat/1#menu' — overlay marker sits at the END of location.hash
+const OVERLAY = /#(menu|viewer|search|topics)$/
 
 /**
  * Overlay hashes left in the URL each eat one hardware-back press: RSK pops the dead
@@ -11,7 +12,7 @@ const OVERLAY = /^#(menu|viewer|search|topics)$/
 export function useCleanHash(keep?: string) {
   const navigate = useNavigate()
   useEffect(() => {
-    if (OVERLAY.test(location.hash) && location.hash !== keep) {
+    if (OVERLAY.test(location.hash) && !(keep && location.hash.endsWith(keep))) {
       navigate(location.pathname + location.search, { replace: true })
     }
   }, [keep, navigate])

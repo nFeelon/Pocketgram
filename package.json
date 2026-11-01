@@ -18,6 +18,7 @@
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@cloudmosa-inc/cloudphone-types": "^1.0.2",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

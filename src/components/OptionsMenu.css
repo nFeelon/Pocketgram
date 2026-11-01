@@ -36,7 +36,12 @@
 .options-menu > *:active {
   background-color: var(--accent2);
   color: #fff;
-  border-image: conic-gradient(var(--accent2) 0 0) fill 0 / / 0 100vw;
+  /* stretch the accent fill to the full row width (border-image longhand —
+   * the shorthand form trips some CSS parsers) */
+  border-image-source: conic-gradient(var(--accent2) 0 0);
+  border-image-slice: 0 fill;
+  border-image-width: 0;
+  border-image-outset: 0 100vw;
 }
 
 /* QVGA */

@@ -1,0 +1,25 @@
+.mq {
+  display: block;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.mq-inner {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/* names scroll whenever they overflow; previews only while the row is focused */
+.mq.has-overflow:not(.mq-wf) .mq-inner,
+.focused .mq.mq-wf.has-overflow .mq-inner {
+  animation: mq-scroll 6s ease-in-out infinite alternate;
+}
+
+@keyframes mq-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(-1 * var(--mx, 0px)));
+  }
+}

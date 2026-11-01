@@ -1,15 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { mediaBlob, mediaChunks, mediaKey, MAX_PLAYABLE_BYTES } from '../tg/media.ts'
 import { getCachedBlob, putCachedBlob } from '../tg/cache.ts'
+import { useSettingsStore } from '../store/settings.ts'
 import { formatSize } from '../utils/format.ts'
 import './MediaViewer.css'
-
-declare global {
-  interface Navigator {
-    /** Cloud Phone system volume HUD — HTMLMediaElement.volume is a no-op there */
-    volumeManager?: { requestShow(): void; requestUp(): void; requestDown(): void }
-  }
-}
 
 interface Props {
   media: Parameters<typeof mediaBlob>[0]
@@ -22,6 +16,15 @@ interface Props {
 // play starts once this much of the file is buffered — faststart MP4 plays from a prefix
 const START_BYTES = 768 * 1024
 
+// blob.type must be sniffable — an octet-stream blob may not decode at all
+const MIME_FALLBACK: Record<string, string> = {
+  video: 'video/mp4',
+  video_note: 'video/mp4',
+  voice: 'audio/ogg',
+  audio: 'audio/mpeg',
+  photo: 'image/jpeg',
+}
+
 /**
  * Full-screen viewer opened as a history entry — RSK/popstate closes it.
  * No MSE on Cloud Phone → instead of real streaming the blob URL is rebuilt as
@@ -32,13 +35,18 @@ export default function MediaViewer({ media, kind, mimeType, size, onClose }: Pr
   const [url, setUrl] = useState<string | null>(null)
   const [err, setErr] = useState('')
   const [pct, setPct] = useState(-1) // -1 = total unknown
+  const [playing, setPlaying] = useState(false)
+  const [playErr, setPlayErr] = useState('')
   const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null)
   const pendingSeek = useRef<{ t: number; play: boolean } | null>(null)
   const swapRef = useRef<() => void>(() => {})
   const loaded = useRef({ bytes: 0, total: 0 }) // for the seek clamp — CBR estimate
+  const fsVideo = useSettingsStore((s) => s.fsVideo)
   const tooBig = size !== undefined && size > MAX_PLAYABLE_BYTES
   const isAudio = kind === 'voice' || kind === 'audio'
   const stream = kind !== 'photo'
+  const mime =
+    mimeType && mimeType !== 'application/octet-stream' ? mimeType : MIME_FALLBACK[kind]
 
   useEffect(() => {
     if (tooBig) return
@@ -60,7 +68,7 @@ export default function MediaViewer({ media, kind, mimeType, size, onClose }: Pr
 
     /** rebuild the blob URL with everything downloaded so far (playback keeps position) */
     const swapIfGrown = () => {
-      if (bytes > urlBytes) open(new Blob(chunks as BlobPart[], { type: mimeType }))
+      if (bytes > urlBytes) open(new Blob(chunks as BlobPart[], { type: mime }))
     }
     swapRef.current = swapIfGrown
 
@@ -75,7 +83,7 @@ export default function MediaViewer({ media, kind, mimeType, size, onClose }: Pr
         return
       }
       if (!stream) {
-        const blob = await mediaBlob(media, mimeType, (d, t) => {
+        const blob = await mediaBlob(media, mime, (d, t) => {
           if (alive) setPct(Number.isFinite(t) && t > 0 ? Math.round((d / t) * 100) : -1)
         })
         if (alive) open(blob)
@@ -90,7 +98,7 @@ export default function MediaViewer({ media, kind, mimeType, size, onClose }: Pr
         if (size && size > 0) setPct(Math.min(99, Math.round((bytes / size) * 100)))
         if (urlBytes === 0 && bytes >= START_BYTES) swapIfGrown()
       }
-      const full = new Blob(chunks as BlobPart[], { type: mimeType })
+      const full = new Blob(chunks as BlobPart[], { type: mime })
       putCachedBlob(key, full)
       swapIfGrown()
       setPct(100)
@@ -103,7 +111,7 @@ export default function MediaViewer({ media, kind, mimeType, size, onClose }: Pr
       alive = false
       if (created) URL.revokeObjectURL(created)
     }
-  }, [media, mimeType, tooBig, stream, size])
+  }, [media, mime, tooBig, stream, size])
 
   const onMediaError = () => {
     const code = mediaRef.current?.error?.code
@@ -133,7 +141,7 @@ export default function MediaViewer({ media, kind, mimeType, size, onClose }: Pr
       if (Number.isFinite(el.duration)) el.currentTime = Math.min(seek.t, Math.max(0, el.duration - 0.1))
       if (!seek.play) return // keep the paused state across a blob swap
     }
-    void el.play().catch(() => {})
+    void el.play().catch((e: Error) => setPlayErr(e.name))
   }
 
   // native controls don't always map D-pad keys — handle them at window level:
@@ -144,7 +152,7 @@ export default function MediaViewer({ media, kind, mimeType, size, onClose }: Pr
       const el = mediaRef.current
       if (e.key === 'Enter' || e.key === ' ' || e.key === 'MediaPlayPause') {
         e.preventDefault()
-        if (el) void (el.paused ? el.play() : el.pause())
+        if (el) void (el.paused ? el.play().catch((er: Error) => setPlayErr(er.name)) : el.pause())
       } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
         e.preventDefault()
         const vm = navigator.volumeManager
@@ -160,8 +168,9 @@ export default function MediaViewer({ media, kind, mimeType, size, onClose }: Pr
     ref: (el: HTMLVideoElement | HTMLAudioElement | null) => {
       mediaRef.current = el
     },
-    controls: true,
     autoPlay: true,
+    onPlay: () => setPlaying(true),
+    onPause: () => setPlaying(false),
     onError: onMediaError,
     onLoadedMetadata,
     onWaiting: onStarved,
@@ -170,8 +179,15 @@ export default function MediaViewer({ media, kind, mimeType, size, onClose }: Pr
     onTimeUpdate,
     onSeeking,
     // autoPlay may be blocked without a fresh gesture — retry on ready
-    onCanPlay: (e: React.SyntheticEvent<HTMLMediaElement>) => void e.currentTarget.play().catch(() => {}),
+    onCanPlay: (e: React.SyntheticEvent<HTMLMediaElement>) =>
+      void e.currentTarget.play().catch((er: Error) => setPlayErr(er.name)),
   }
+
+  // native <video controls> paint a giant gradient over half the tiny screen and
+  // eat the center key themselves — video gets our keys only; audio keeps its bar.
+  // fsVideo = escape hatch back to the system fullscreen player (+native controls).
+  const videoHandlers = fsVideo ? { ...mediaHandlers, controls: true } : mediaHandlers
+  const audioHandlers = { ...mediaHandlers, controls: true }
 
   return (
     <div className="media-viewer" role="dialog" aria-modal>
@@ -187,12 +203,25 @@ export default function MediaViewer({ media, kind, mimeType, size, onClose }: Pr
       )}
       {err && <p className="hint">{err}</p>}
       {url && kind === 'photo' && <img src={url} alt="" className="full" />}
-      {url && isAudio && <audio {...mediaHandlers} src={url} className="audio" />}
+      {url && isAudio && <audio {...audioHandlers} src={url} className="audio" />}
       {url && !isAudio && kind !== 'photo' && (
-        <video {...mediaHandlers} src={url} playsInline className="full" />
+        <video
+          {...videoHandlers}
+          src={url}
+          playsInline
+          // Cloud Phone plays <video> fullscreen by default — opt out unless the
+          // user picked the system player (fsVideo)
+          {...(fsVideo ? {} : { 'x-puffin-playsinline': '' })}
+          className="full"
+        />
       )}
       {url && !err && pct >= 0 && pct < 100 && stream && <p className="hint small">…{pct}%</p>}
-      {url && !err && <p className="hint small">центр — ▶/⏸ · ↑↓ — громкость</p>}
+      {url && !err && (
+        <p className="hint small">
+          {playing ? '⏸' : '▶'} центр · ↑↓ громкость
+          {playErr ? ` · play: ${playErr}` : ''}
+        </p>
+      )}
       <button className="close-hint" onClick={onClose}>
         Назад
       </button>
