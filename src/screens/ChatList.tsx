@@ -18,11 +18,17 @@ export default function ChatList() {
   const [exitOpen, setExitOpen] = useState(false)
   const [focused, setFocused] = useState(0)
   const searchRef = useRef<HTMLInputElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
 
   const visible = filter
     ? dialogs.filter((d) => d.title.toLowerCase().includes(filter.toLowerCase()))
     : dialogs
   const clamped = Math.min(focused, Math.max(0, visible.length - 1))
+
+  // keep the focused row on screen — only ~4 rows fit at QQVGA
+  useEffect(() => {
+    listRef.current?.querySelector('.focused')?.scrollIntoView({ block: 'nearest' })
+  }, [clamped])
 
   const openDialog = (i: number) => {
     const d = visible[i]
@@ -72,7 +78,7 @@ export default function ChatList() {
         }}
       />
 
-      <div className="dialog-list" role="listbox">
+      <div className="dialog-list" ref={listRef} role="listbox">
         {visible.map((d, i) => (
           <div
             key={d.id}

@@ -21,7 +21,7 @@ export default function Confirm({ text, onConfirm, onCancel }: Props) {
   return (
     <div className="confirm" role="alertdialog" aria-modal>
       <p>{text}</p>
-      <p className="hint">Enter — да · Esc — нет</p>
+      <p className="hint">Центр — да · Левая — нет</p>
     </div>
   )
 }

@@ -4,7 +4,7 @@
   margin: 2pt 4pt;
   padding: 3pt 5pt 10pt;
   border-radius: 6px;
-  font-size: 12pt;
+  font-size: 10pt;
   line-height: 1.2;
   word-break: break-word;
   white-space: pre-wrap;
@@ -54,7 +54,7 @@
 }
 
 .media-meta {
-  font-size: 9pt;
+  font-size: 8pt;
 }
 
 .photo-thumb,

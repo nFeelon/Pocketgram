@@ -63,7 +63,7 @@ export default function Auth() {
               onKeyDown={onKeyDown}
               autoFocus
             />
-            <p className="auth-hint">Enter — продолжить</p>
+            <p className="auth-hint">Центр — продолжить</p>
           </>
         )}
         {stage === 'boot' && <p className="auth-hint">Подключение…</p>}

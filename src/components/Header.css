@@ -10,7 +10,7 @@
 
 .app-header h1 {
   margin: 0;
-  font-size: 14pt;
+  font-size: 12pt;
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
@@ -18,7 +18,7 @@
 }
 
 .app-header .status {
-  font-size: 10pt;
+  font-size: 9pt;
   color: #7f91a4;
   white-space: nowrap;
 }

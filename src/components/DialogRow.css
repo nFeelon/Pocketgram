@@ -24,7 +24,7 @@
 }
 
 .dialog-title {
-  font-size: 12pt;
+  font-size: 10pt;
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
@@ -32,13 +32,13 @@
 }
 
 .dialog-time {
-  font-size: 9pt;
+  font-size: 8pt;
   color: #7f91a4;
   flex: 0 0 auto;
 }
 
 .dialog-preview {
-  font-size: 10pt;
+  font-size: 9pt;
   color: #a7b6c4;
   white-space: nowrap;
   overflow: hidden;

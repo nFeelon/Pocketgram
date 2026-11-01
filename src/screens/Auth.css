@@ -7,7 +7,7 @@
 }
 
 .auth-label {
-  font-size: 12pt;
+  font-size: 10pt;
   font-weight: 700;
 }
 
@@ -16,7 +16,7 @@
   border: none;
   border-radius: 4px;
   color: #fff;
-  font-size: 12pt;
+  font-size: 10pt;
   padding: 4pt 6pt;
 }
 
@@ -25,13 +25,13 @@
 }
 
 .auth-hint {
-  font-size: 10pt;
+  font-size: 9pt;
   color: #7f91a4;
   margin: 0;
 }
 
 .auth-error {
-  font-size: 10pt;
+  font-size: 9pt;
   color: #e17076;
   margin: 0;
   white-space: pre-wrap;

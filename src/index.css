@@ -15,7 +15,7 @@ body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  font-size: 12pt; /* QQVGA typography baseline */
+  font-size: 10pt; /* QQVGA typography baseline */
 }
 
 a {

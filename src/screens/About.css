@@ -1,9 +1,17 @@
 .about-body {
   flex: 1;
   padding: 8pt 6pt;
-  font-size: 11pt;
+  font-size: 10pt;
+  overflow-y: auto;
+  scrollbar-width: none;
 }
 
 .about-body p {
   margin: 4pt 0;
+}
+
+.about-body .keys {
+  font-size: 9pt;
+  color: #7f91a4;
+  line-height: 1.4;
 }
