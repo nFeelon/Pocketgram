@@ -1,0 +1,20 @@
+.confirm {
+  position: absolute;
+  inset: auto 0 20px 0;
+  z-index: 20;
+  background: #242f3d;
+  margin: 0 8pt;
+  padding: 6pt;
+  border-radius: 6px;
+  text-align: center;
+}
+
+.confirm p {
+  margin: 2pt 0;
+  font-size: 11pt;
+}
+
+.confirm .hint {
+  font-size: 9pt;
+  color: #7f91a4;
+}

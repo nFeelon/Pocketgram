@@ -1,0 +1,34 @@
+.media-viewer {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.media-viewer .full {
+  max-width: 100vw;
+  max-height: calc(100vh - 20px);
+  object-fit: contain;
+}
+
+.media-viewer .hint {
+  font-size: 10pt;
+  color: #a7b6c4;
+  padding: 8pt;
+  text-align: center;
+}
+
+.media-viewer .close-hint {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 10pt;
+  padding: 3pt 6pt;
+}

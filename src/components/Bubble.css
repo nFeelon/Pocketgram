@@ -1,0 +1,66 @@
+.bubble {
+  position: relative;
+  max-width: 92%;
+  margin: 2pt 4pt;
+  padding: 3pt 5pt 10pt;
+  border-radius: 6px;
+  font-size: 12pt;
+  line-height: 1.2;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.bubble.in {
+  align-self: flex-start;
+  background: #2b5278;
+}
+
+.bubble.out {
+  align-self: flex-end;
+  background: #3e6b48;
+}
+
+.bubble.focused,
+.bubble:focus {
+  outline: 2px solid #5cb5ff;
+  outline-offset: -2px;
+}
+
+.bubble-time {
+  position: absolute;
+  right: 4pt;
+  bottom: 2pt;
+  font-size: 8pt;
+  color: #9fb8d0;
+}
+
+.media {
+  display: flex;
+  align-items: center;
+  gap: 3pt;
+  margin: 1pt 0;
+  color: #cfe0f5;
+}
+
+.media svg {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+}
+
+.media .wave {
+  height: 14px;
+  max-width: 60px;
+}
+
+.media-meta {
+  font-size: 9pt;
+}
+
+.photo-thumb,
+.video-thumb {
+  background: #17212b;
+  border-radius: 4px;
+  padding: 8pt;
+  justify-content: center;
+}

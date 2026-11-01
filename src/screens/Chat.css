@@ -1,0 +1,13 @@
+.message-list {
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: none;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 2pt;
+}
+
+.msg-focused .bubble {
+  outline: 2px solid #5cb5ff;
+  outline-offset: -2px;
+}

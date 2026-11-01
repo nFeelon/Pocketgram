@@ -1,0 +1,31 @@
+.app-header {
+  display: flex;
+  align-items: baseline;
+  gap: 4pt;
+  padding: 2pt 4pt;
+  background: #17212b;
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 14pt;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  flex: 1;
+}
+
+.app-header .status {
+  font-size: 10pt;
+  color: #7f91a4;
+  white-space: nowrap;
+}
+
+/* QVGA */
+@media only screen and (min-width: 129px) and (max-width: 240px) {
+  .app-header h1 {
+    font-size: 24pt;
+  }
+}

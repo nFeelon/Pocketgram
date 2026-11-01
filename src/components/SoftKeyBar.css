@@ -1,0 +1,71 @@
+.softkey-bar {
+  width: 100%;
+  display: flex;
+  white-space: nowrap;
+  background: #17212b;
+  color: white;
+  flex: 0 0 auto;
+  z-index: 2;
+}
+
+.softkey-bar > button {
+  flex: 0 1 33.3%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 10pt;
+  gap: 2pt;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* QVGA */
+@media only screen and (min-width: 129px) and (max-width: 240px) {
+  .softkey-bar {
+    height: 36px;
+  }
+
+  .softkey-bar > button svg {
+    transform: scale(1.5);
+  }
+
+  .softkey-bar > button {
+    padding: 0 8pt;
+    font-size: 12pt;
+  }
+}
+
+/* QQVGA */
+@media only screen and (max-width: 128px) {
+  .softkey-bar {
+    height: 20px;
+  }
+
+  .softkey-bar > button {
+    padding: 0 4pt;
+  }
+}
+
+.softkey-bar > button[disabled] {
+  pointer-events: none;
+}
+
+.softkey-bar > button:nth-child(1) {
+  justify-content: flex-start;
+  text-align: start;
+}
+
+.softkey-bar > button:nth-child(2) {
+  text-transform: uppercase;
+  flex-grow: 1;
+  flex-shrink: 0;
+}
+
+.softkey-bar > button:nth-child(3) {
+  justify-content: flex-end;
+  text-align: end;
+}

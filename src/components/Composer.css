@@ -1,0 +1,20 @@
+.composer {
+  padding: 2pt 4pt;
+  background: #17212b;
+  flex: 0 0 auto;
+}
+
+.composer input {
+  width: 100%;
+  background: #242f3d;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 11pt;
+  padding: 3pt 5pt;
+}
+
+.composer input:focus {
+  outline: 2px solid #5cb5ff;
+  outline-offset: -2px;
+}

@@ -1,0 +1,9 @@
+.about-body {
+  flex: 1;
+  padding: 8pt 6pt;
+  font-size: 11pt;
+}
+
+.about-body p {
+  margin: 4pt 0;
+}

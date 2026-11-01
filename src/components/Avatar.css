@@ -1,0 +1,13 @@
+.avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10pt;
+  font-weight: 700;
+  color: #fff;
+  flex: 0 0 auto;
+  object-fit: cover;
+}

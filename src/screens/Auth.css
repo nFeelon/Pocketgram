@@ -1,0 +1,38 @@
+.auth-body {
+  flex: 1;
+  padding: 8pt 6pt;
+  display: flex;
+  flex-direction: column;
+  gap: 4pt;
+}
+
+.auth-label {
+  font-size: 12pt;
+  font-weight: 700;
+}
+
+.auth-body input {
+  background: #242f3d;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 12pt;
+  padding: 4pt 6pt;
+}
+
+.auth-body input:focus {
+  outline: 2px solid #5cb5ff;
+}
+
+.auth-hint {
+  font-size: 10pt;
+  color: #7f91a4;
+  margin: 0;
+}
+
+.auth-error {
+  font-size: 10pt;
+  color: #e17076;
+  margin: 0;
+  white-space: pre-wrap;
+}

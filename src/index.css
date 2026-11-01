@@ -1,0 +1,60 @@
+:root {
+  font-family: 'Roboto', sans-serif;
+  background: #0e1621;
+  color: #fff;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+a {
+  color: #5cb5ff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+#app {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Focused item highlight — full-width bar, per Cloud Phone design guide */
+.focused,
+:focus-visible {
+  outline: none;
+}
+
+button[role='menuitem'] {
+  background: transparent;
+  border: none;
+  color: white;
+  margin: 0;
+  padding: 4pt 0;
+  display: block;
+  width: 100%;
+  text-align: start;
+}
+
+button[role='menuitem'].focused,
+button[role='menuitem']:focus {
+  background-color: #1971e6;
+  border-image: conic-gradient(#1971e6 0 0) fill 0//0 100vw;
+}
+
+/* QQVGA typography baseline */
+body {
+  font-size: 12pt;
+}
