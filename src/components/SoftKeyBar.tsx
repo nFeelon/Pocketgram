@@ -29,8 +29,10 @@ interface Props {
 export default function SoftKeyBar({ buttons = {}, onSoftKeyClick = () => {} }: Props) {
   useEffect(() => {
     const handleEvent = (event: KeyboardEvent) => {
-      // typing in an input — let the field's own Enter/Esc handling work, don't fire soft keys
-      if ((event.target as HTMLElement)?.tagName === 'INPUT') return
+      const tag = (event.target as HTMLElement)?.tagName
+      // inputs own their keys; Enter on a focused <button> already clicks it natively —
+      // mapping it to 'center' too would fire the action twice
+      if (tag === 'INPUT' || (tag === 'BUTTON' && event.key === 'Enter')) return
       switch (event.key) {
         /* Left Soft Key (LSK) */
         case 'Escape': return onSoftKeyClick('start')
@@ -45,10 +47,10 @@ export default function SoftKeyBar({ buttons = {}, onSoftKeyClick = () => {} }: 
   const renderButton = (position: SoftKeyPosition) => {
     const cfg = buttons[position]
     if (!cfg) {
-      return <button key={position} className="disabled" disabled aria-disabled="true" />
+      return <button key={position} data-pos={position} className="disabled" disabled aria-disabled="true" />
     }
     return (
-      <button key={position} onClick={() => onSoftKeyClick(position)} title={cfg.title}>
+      <button key={position} data-pos={position} onClick={() => onSoftKeyClick(position)} title={cfg.title}>
         {cfg.icon && getIconFromName(cfg.icon)}
         {cfg.text}
       </button>

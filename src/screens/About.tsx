@@ -28,8 +28,8 @@ export default function About() {
         <p className="keys">↑↓ — листать</p>
         {selfName && <p>Аккаунт: {selfName}</p>}
         <p className="keys">
-          Центр — выбрать · ↑↓ — список<br />
-          ↑ наверху — поиск · ↓ внизу — ввод<br />
+          Центр — выбрать · ↑↓←→ — навигация<br />
+          ↓ у нижних кнопок — листать ленту<br />
           Левая — меню · Правая — назад
         </p>
         <p>Версия 0.1.0 · MTProto (mtcute)</p>

@@ -22,6 +22,11 @@ interface ViewerState {
   size?: number
 }
 
+/**
+ * Focus zones (D-pad, YouTube-style): 0..n-1 = bubbles, then composer field →
+ * ➤ button (DOM focus islands inside Composer), n..n+2 = softkey bar buttons.
+ * ↓ on a softkey button scrolls the feed; Center clicks the focused button.
+ */
 export default function Chat() {
   const { peerId = '' } = useParams()
   const navigate = useNavigate()
@@ -33,8 +38,15 @@ export default function Chat() {
   const [focused, setFocused] = useState(0)
   const [canDownload, setCanDownload] = useState(false)
   const composerRef = useRef<HTMLInputElement>(null)
+  const sendRef = useRef<HTMLButtonElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
   const prevMsgCount = useRef(0)
+  const lastRow = useRef(0)
+
+  const n = messages.length
+  const clamped = Math.min(Math.max(focused, 0), n + 2)
+  const rowFocused = clamped < n ? clamped : -1
 
   const title = dialog?.title
   const dialogType = dialog?.type
@@ -46,18 +58,29 @@ export default function Chat() {
   // enter the chat with the newest message focused (spec: "старт с последнего") —
   // covers async history load too (0 → non-empty transition)
   useEffect(() => {
-    if (prevMsgCount.current === 0 && messages.length) setFocused(messages.length - 1)
-    prevMsgCount.current = messages.length
-  }, [messages.length])
+    if (prevMsgCount.current === 0 && n) setFocused(n - 1)
+    prevMsgCount.current = n
+  }, [n])
 
   useEffect(() => {
     void hasFeature('FileDownload').then(setCanDownload)
   }, [])
 
-  // keep the focused bubble on screen while arrowing through the feed
+  const softkeyBtns = () =>
+    Array.from(
+      rootRef.current?.querySelectorAll<HTMLButtonElement>('.softkey-bar > button:not([disabled])') ?? [],
+    )
+  const centerBtn = () => rootRef.current?.querySelector<HTMLButtonElement>('[data-pos="center"]')
+
+  // sync DOM focus onto the softkey zone's button; keep the focused bubble on screen
   useEffect(() => {
-    listRef.current?.querySelector('.msg-focused')?.scrollIntoView({ block: 'nearest' })
-  }, [focused])
+    if (clamped >= n) softkeyBtns()[clamped - n]?.focus()
+    else if (document.activeElement instanceof HTMLButtonElement) document.activeElement.blur()
+    if (rowFocused >= 0) {
+      lastRow.current = rowFocused
+      listRef.current?.querySelector('.msg-focused')?.scrollIntoView({ block: 'nearest' })
+    }
+  }, [clamped, n, rowFocused])
 
   // viewer is a history entry → RSK (popstate) closes it instead of leaving the chat
   useEffect(() => {
@@ -78,6 +101,15 @@ export default function Chat() {
     else setViewer(null)
   }
 
+  const openFocused = () => {
+    const m = messages[lastRow.current]
+    if (m?.media && (m.mediaKind === 'photo' || m.mediaKind === 'video' || m.mediaKind === 'video_note')) {
+      openViewer({ media: m.media as DownloadableMedia, kind: m.mediaKind, mimeType: m.mimeType, size: m.size })
+    } else if (m?.mediaKind === 'voice') {
+      // TODO: fetch blob → <audio> play/stop toggle
+    }
+  }
+
   // spec: "Скачать" (FileDownload feature) — fetch blob, hand it to the browser download path
   const downloadFocused = (m: ChatMessage) => {
     if (!m.media) return
@@ -93,26 +125,43 @@ export default function Chat() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName
-      if (menuVisible || viewer || tag === 'INPUT' || tag === 'BUTTON') return
+      // inputs own their keys; Enter on a button clicks natively — don't double-handle
+      if (menuVisible || viewer || tag === 'INPUT' || (tag === 'BUTTON' && e.key === 'Enter')) return
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault()
-          if (focused >= messages.length - 1) composerRef.current?.focus()
-          else setFocused((f) => f + 1)
+          if (clamped === n - 1) {
+            // last bubble → composer field; read-only chats drop straight to the bar
+            if (readOnly) setFocused(n + 1)
+            else composerRef.current?.focus()
+          } else if (clamped >= n) {
+            // on the softkey bar: ↓ scrolls the feed, focus stays
+            listRef.current?.scrollBy({ top: 40 })
+          } else setFocused(clamped + 1)
           break
         case 'ArrowUp':
           e.preventDefault()
-          setFocused((f) => Math.max(f - 1, 0))
+          if (clamped >= n) {
+            // n === 0: no row to return to — leave the zone on the bar; the input keeps DOM focus
+            if (!readOnly) composerRef.current?.focus()
+            if (n > 0) setFocused(n - 1)
+          } else setFocused(clamped - 1)
           break
-        case 'Enter': {
-          const m = messages[focused]
-          if (m?.media && (m.mediaKind === 'photo' || m.mediaKind === 'video' || m.mediaKind === 'video_note')) {
-            openViewer({ media: m.media as DownloadableMedia, kind: m.mediaKind, mimeType: m.mimeType, size: m.size })
-          } else if (m?.mediaKind === 'voice') {
-            // TODO: fetch blob → <audio> play/stop toggle
+        case 'ArrowLeft':
+          if (clamped >= n) {
+            e.preventDefault()
+            setFocused(Math.max(n, clamped - 1))
           }
           break
-        }
+        case 'ArrowRight':
+          if (clamped >= n) {
+            e.preventDefault()
+            setFocused(Math.min(n + 2, clamped + 1))
+          }
+          break
+        case 'Enter':
+          if (rowFocused >= 0) openFocused()
+          break
       }
     }
     window.addEventListener('keydown', onKey)
@@ -125,18 +174,25 @@ export default function Chat() {
   }
 
   return (
-    <div id="app">
+    <div id="app" ref={rootRef}>
       <Header title={dialog?.title ?? 'Чат'} status={dialog?.type === 'channel' ? 'канал' : ''} />
 
       <div className="message-list" ref={listRef}>
         {messages.map((m, i) => (
-          <div key={m.id} className={i === focused ? 'msg-focused' : ''}>
+          <div key={m.id} className={i === rowFocused ? 'msg-focused' : ''}>
             <Bubble msg={m} />
           </div>
         ))}
       </div>
 
-      {!readOnly && <Composer inputRef={composerRef} onSend={send} />}
+      {!readOnly && (
+        <Composer
+          inputRef={composerRef}
+          sendRef={sendRef}
+          onSend={send}
+          onBelow={() => setFocused(n + 1)}
+        />
+      )}
 
       <OptionsMenu
         visible={menuVisible}
@@ -147,7 +203,7 @@ export default function Chat() {
         <button type="button" onClick={() => {/* TODO: tg.call messages.readHistory */}}>Прочитано</button>
         {canDownload && (
           <button type="button" onClick={() => {
-            const m = messages[focused]
+            const m = messages[lastRow.current]
             if (m) downloadFocused(m)
           }}>Скачать</button>
         )}
@@ -176,9 +232,11 @@ export default function Chat() {
             else if (menuVisible) navigate(-1)
             else setMenuVisible(true)
           }
+          // row-Enter already opened it — only act when the button itself is focused;
+          // the viewer/menu own all input while open
+          if (pos === 'center' && !viewer && !menuVisible && document.activeElement === centerBtn()) openFocused()
           // 'end' only fires on button click — hardware RSK is history.back natively
           if (pos === 'end') navigate(-1)
-          // 'center' (Enter) handled by Composer/the list
         }}
       />
     </div>

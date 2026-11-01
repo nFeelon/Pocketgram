@@ -1,4 +1,3 @@
-import { useRef } from 'react'
 import type { RefObject } from 'react'
 import './Composer.css'
 
@@ -6,13 +5,14 @@ interface Props {
   onSend: (text: string) => void
   /** Focused from the message list (ArrowDown past the last bubble) — Cloud Phone shows its IME */
   inputRef: RefObject<HTMLInputElement | null>
+  /** ArrowDown on the send button → softkey bar; ArrowUp on the bar returns here */
+  sendRef: RefObject<HTMLButtonElement | null>
+  onBelow: () => void
 }
 
-export default function Composer({ onSend, inputRef }: Props) {
+export default function Composer({ onSend, inputRef, sendRef, onBelow }: Props) {
   // Center on a focused field opens the native IME on Cloud Phone — so Enter-in-input
   // is only a desktop/sim path. The real send is the focusable ➤ button (↓ from the field).
-  const sendRef = useRef<HTMLButtonElement>(null)
-
   const doSend = () => {
     const v = inputRef.current?.value.trim()
     if (v) {
@@ -43,7 +43,10 @@ export default function Composer({ onSend, inputRef }: Props) {
         aria-label="Отправить"
         onClick={doSend}
         onKeyDown={(e) => {
+          // arrows handled here — don't let them also reach the screen's nav listener
           if (e.key === 'ArrowUp') inputRef.current?.focus()
+          else if (e.key === 'ArrowDown') onBelow()
+          if (e.key.startsWith('Arrow')) e.stopPropagation()
         }}
       >
         ➤

@@ -50,6 +50,11 @@
   }
 }
 
+.softkey-bar > button:focus {
+  background: #1971e6;
+  outline: none;
+}
+
 .softkey-bar > button[disabled] {
   pointer-events: none;
 }
